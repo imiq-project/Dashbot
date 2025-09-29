@@ -1,6 +1,6 @@
 # Dashbot v1.0
 
-A conversational interface for smart city dashboards that lets users ask natural language questions about real-time city data. Currently it supports only English, German will be supported really soon.
+A conversational interface for the smart city dashboard that lets users ask natural language questions about real-time city data. Currently it supports only English, German will be supported really soon.
 
 ## What it does
 
