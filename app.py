@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, jsonify
 import requests
 from datetime import datetime
 import random
+import os
 
 ##Rule-based system for translating natural language to FIWARE-QL queries with location awareness
 class SimpleFIWARERuleBasedTranslator:
@@ -921,7 +922,7 @@ class RuleBasedResponseGenerator:
 class SimpleFIWARETester:
     """Enhanced version with location-aware response generation"""
     
-    def __init__(self, fiware_url="https://imiq-public.et.uni-magdeburg.de/api/orion", api_key="A9ioeCoyn7Imksmy"):
+    def __init__(self, fiware_url, api_key):
         self.fiware_url = fiware_url
         self.api_key = api_key
         self.translator = SimpleFIWARERuleBasedTranslator()
@@ -1096,7 +1097,7 @@ class SimpleFIWARETester:
 app = Flask(__name__)
 
 #start chatbot
-chatbot = SimpleFIWARETester()
+chatbot = SimpleFIWARETester(os.environ["FIWARE_URL"], os.environ["FIWARE_API_KEY"])
 
 @app.route('/')
 def index():
