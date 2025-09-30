@@ -1097,7 +1097,7 @@ class SimpleFIWARETester:
 app = Flask(__name__)
 
 #start chatbot
-chatbot = SimpleFIWARETester(os.environ["FIWARE_URL"], os.environ["FIWARE_API_KEY"])
+chatbot = SimpleFIWARETester(os.environ["FIWARE_URL"], os.environ.get("FIWARE_API_KEY", ""))
 
 @app.route('/')
 def index():
