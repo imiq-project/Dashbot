@@ -5,6 +5,10 @@ on:
     branches:
       - "**"   # run on all branches
 
+permissions:
+  contents: read
+  packages: write # required to publish to GHCR
+
 jobs:
   build:
     runs-on: ubuntu-latest
