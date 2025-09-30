@@ -1,7 +1,65 @@
-// Dashbot Widget JavaScript
+function initDashbot(url) {
 
-// IMPORTANT: Update this URL 
-const DASHBOT_API_URL = '/chat'; //we should change this to our Flask app URL
+const DASHBOT_API_URL = url;
+
+const html = `
+<div class="ask-city-bubble" id="askCityBubble">
+    <span class="bubble-icon">🏙️</span>
+    <span>Ask the City</span>
+</div>
+
+<!--floating chat toggle button -->
+<button class="chat-toggle-btn" id="chatToggleBtn">
+    <span id="chatIcon">💬</span>
+    <div class="notification-badge" id="notificationBadge" style="display: none;">!</div>
+</button>
+
+<!--floating chat container -->
+<div class="floating-chat-container" id="floatingChatContainer">
+    <div class="chat-header">
+        <div class="chat-header-info">
+            <span class="chat-header-icon">🤖</span>
+            <h1>Dashbot</h1>
+        </div>
+        <button class="minimize-btn" id="minimizeBtn">×</button>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+        <div class="welcome-message">
+            <h2>Hello! 👋</h2>
+            <p>I'm Dashbot, your smart city assistant. Ask me about parking, weather, and sensors in your city.</p>
+            <div class="example-questions">
+                <div class="example-question">
+                    🌡️ Current temperature?
+                </div>
+                <div class="example-question">
+                    🅿️ Available parking?
+                </div>
+                <div class="example-question">
+                    💧 Humidity levels?
+                </div>
+                <div class="example-question">
+                    🚙 Check Traffic?
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="typing-indicator" id="typingIndicator">
+        <span class="typing-dots">Dashbot is thinking</span>
+    </div>
+    
+    <div class="chat-input-container">
+        <input type="text" class="chat-input" id="messageInput" placeholder="Ask about city data..." autocomplete="off">
+        <button class="send-button" id="sendButton">
+            <span id="sendIcon">➤</span>
+            <div class="spinner" id="loadingSpinner" style="display: none;"></div>
+        </button>
+    </div>
+</div>
+`
+
+document.body.insertAdjacentHTML('afterend', html)
 
 //get DOM elements
 const chatToggleBtn = document.getElementById('chatToggleBtn');
@@ -15,6 +73,16 @@ const loadingSpinner = document.getElementById('loadingSpinner');
 const chatIcon = document.getElementById('chatIcon');
 const notificationBadge = document.getElementById('notificationBadge');
 const askCityBubble = document.getElementById('askCityBubble');
+
+askCityBubble.onclick = openChatFromBubble;
+chatToggleBtn.onclick = toggleChat
+document.getElementById('minimizeBtn').onclick = toggleChat
+sendButton.onclick = sendMessage
+const exampleQuestions = document.getElementsByClassName("example-question")
+exampleQuestions[0].onclick = () => sendExampleQuestion('What\'s the current temperature?')
+exampleQuestions[1].onclick = () => sendExampleQuestion('Available parking spaces?')
+exampleQuestions[2].onclick = () => sendExampleQuestion('Highest humidity location?')
+exampleQuestions[3].onclick = () => sendExampleQuestion('Show me traffic data')
 
 let isChatOpen = false;
 let hasNewMessage = false;
@@ -269,18 +337,7 @@ async function sendMessage() {
 }
 
 //initialize chatbot when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Dashbot widget initialized');
-    console.log('API URL:', DASHBOT_API_URL);
-    
-    //test if backend is reachable
-    fetch(DASHBOT_API_URL.replace('/chat', '/health'))
-        .then(response => {
-            if (response.ok) {
-                console.log('Dashbot backend is reachable');
-            }
-        })
-        .catch(error => {
-            console.warn('Dashbot backend not reachable:', error);
-        });
-});
+console.log('Dashbot widget initialized');
+console.log('API URL:', DASHBOT_API_URL);
+
+};

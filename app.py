@@ -1137,14 +1137,6 @@ def chat():
             'debug': {'error': str(e)}
         })
 
-@app.route('/health')
-def health():
-    return jsonify({
-        'status': 'healthy', 
-        'chatbot_ready': chatbot is not None,
-        'timestamp': datetime.now().isoformat()
-    })
-
 if __name__ == '__main__':
     print("Starting Flask server")
     app.run(debug=False, host='127.0.0.1', port=5000)
