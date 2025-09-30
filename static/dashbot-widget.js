@@ -175,7 +175,7 @@ function formatBotMessage(content) {
 }
 
 //typewriter effect for bot messages
-async function typeWriter(element, text, speed = 25) {
+async function typeWriter(element, text, speed = 1) {
     return new Promise((resolve) => {
         let i = 0;
         const cursor = document.createElement('span');
