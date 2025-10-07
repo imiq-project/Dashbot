@@ -1,4 +1,4 @@
-/* Dashbot Widget CSS 
+/* Dashbot Widget CSS */
 /* Ask the City Bubble */
 .ask-city-bubble {
     position: fixed;
@@ -164,6 +164,62 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* ===== NEW: Language Switcher Styles ===== */
+.language-switcher {
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.language-switcher-label {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.language-toggle {
+    display: flex;
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.language-option {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+}
+
+.language-option.active {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+}
+
+.language-option:hover:not(.active) {
+    background: #f8f9fa;
+}
+
+.language-alert {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #856404;
+}
+/* ===== END: Language Switcher Styles ===== */
+
 .chat-messages {
     flex: 1;
     padding: 12px;
@@ -240,23 +296,6 @@
     color: #28a745;
     font-weight: 600;
     font-size: 13px;
-}
-
-.message-bubble .map-link {
-    display: inline-block;
-    margin: 3px 0;
-    padding: 4px 10px;
-    background: #007bff;
-    color: white !important;
-    border-radius: 15px;
-    text-decoration: none;
-    font-size: 11px;
-    transition: all 0.2s ease;
-}
-
-.message-bubble .map-link:hover {
-    background: #0056b3;
-    transform: translateY(-1px);
 }
 
 .message-bubble .follow-up {
