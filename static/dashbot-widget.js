@@ -1,6 +1,7 @@
-function initDashbot(url) {
+function initDashbot(options) {
 
-const DASHBOT_API_URL = url;
+const DASHBOT_API_URL = options.backendUrl;
+const rootElement = options.element ? document.querySelector(options.element) : document.body;
 
 const html = `
 <div class="ask-city-bubble" id="askCityBubble">
@@ -59,7 +60,7 @@ const html = `
 </div>
 `
 
-document.body.insertAdjacentHTML('afterend', html)
+rootElement.insertAdjacentHTML('beforeend', html)
 
 //get DOM elements
 const chatToggleBtn = document.getElementById('chatToggleBtn');
