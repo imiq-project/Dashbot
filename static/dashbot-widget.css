@@ -1,15 +1,22 @@
+:root {
+  --color-primary: #7a003f;   /* OVGU Burgunder */
+  --color-secondary: #ffffff; /* White */
+  --color-accent: #623cea;    /* Majorelle blue */
+  --color-neutral: #a5c4d4;   /* Pale sky blue */
+}
+
 /* Dashbot Widget CSS 
 /* Ask the City Bubble */
 .ask-city-bubble {
     position: fixed;
     bottom: 120px;
     right: 30px;
-    background: linear-gradient(135deg, #25d366, #128c7e);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
     color: white;
     padding: 12px 20px;
     border-radius: 25px;
     cursor: pointer;
-    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
+    box-shadow: 0 8px 25px var(--color-neutral);
     z-index: 1002;
     display: flex;
     align-items: center;
@@ -22,7 +29,7 @@
 
 .ask-city-bubble:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 35px rgba(37, 211, 102, 0.4);
+    box-shadow: 0 12px 35px var(--color-accent);
 }
 
 .ask-city-bubble.hidden {
@@ -65,11 +72,11 @@
     right: 30px;
     width: 60px;
     height: 60px;
-    background: linear-gradient(135deg, #25d366, #128c7e);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-neutral));
     border: none;
     border-radius: 50%;
     cursor: pointer;
-    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
+    box-shadow: 0 8px 25px var(--color-accent);
     z-index: 1001;
     display: flex;
     align-items: center;
@@ -81,7 +88,7 @@
 
 .chat-toggle-btn:hover {
     transform: scale(1.1);
-    box-shadow: 0 12px 35px rgba(37, 211, 102, 0.4);
+    box-shadow: 0 12px 35px var(--color-accent);
 }
 
 .chat-toggle-btn.active {
@@ -121,7 +128,7 @@
 }
 
 .chat-header {
-    background: linear-gradient(135deg, #25d366, #128c7e);
+    background: var(--color-primary);
     color: white;
     padding: 12px 15px;
     display: flex;
