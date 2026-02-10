@@ -1,8 +1,0 @@
-__pycache__
-*.pyc
-.cache
-.git
-rule_based Dashbot
-nul
-neo4j_previous.py
-NEO4J_Campus_Graph_Documentation.md
