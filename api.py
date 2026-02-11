@@ -47,7 +47,7 @@ from agents.dialogue_manager import (
 from services.coordinate_resolver import get_coordinates, search_buildings, initialize_resolver as init_coord_resolver
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "b8gbDO0ybjX1VA89pBdX")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "cgSgspJ2msm6clMCkdW9")
 EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 
 print("🚀 Starting Magdeburg Assistant API v4.5 (Proactive Conversational Flow)...")
@@ -1182,3 +1182,4 @@ if __name__ == "__main__":
     print("\n🚀 Starting IMIQ API v4.5")
     print("   Proactive Conversational Flow + LLM-based map building")
     uvicorn.run("api:app", host="0.0.0.0", port=5000, reload=True)
+
