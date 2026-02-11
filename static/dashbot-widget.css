@@ -1,5 +1,5 @@
 /* ========================================
-   Dashbot Widget — Side-Panel Chat (1/4 page)
+   Dashbot Widget — Side-Panel Chat 
    ======================================== */
 
 :root {
@@ -13,8 +13,6 @@
     --db-radius: 14px;
     --db-transition: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-/* ---- Smart City Avatar Button ---- */
 
 .dashbot-avatar {
     position: fixed;
@@ -137,8 +135,6 @@
     transform: translateX(0);
 }
 
-/* ---- Panel Header ---- */
-
 .dashbot-panel-header {
     display: flex;
     align-items: center;
@@ -236,8 +232,6 @@
     background: rgba(255,255,255,0.25);
 }
 
-/* ---- Messages Area ---- */
-
 .dashbot-messages {
     flex: 1;
     padding: 18px;
@@ -256,8 +250,6 @@
     background: #d0d5dd;
     border-radius: 10px;
 }
-
-/* ---- Welcome ---- */
 
 .dashbot-welcome {
     text-align: center;
@@ -323,8 +315,6 @@
     flex-shrink: 0;
 }
 
-/* ---- Messages ---- */
-
 .dashbot-msg {
     margin-bottom: 14px;
     animation: dashbot-msg-in 0.25s ease;
@@ -384,9 +374,6 @@
     text-align: left;
 }
 
-/* ---- Rich message formatting ---- */
-
-/* Context tip (weather/condition at top) */
 .dashbot-bubble .db-context-tip {
     display: flex;
     align-items: flex-start;
@@ -406,7 +393,6 @@
     flex-shrink: 0;
 }
 
-/* Section header (e.g. "By public transit:", "Walking:") */
 .dashbot-bubble .db-section-header {
     font-weight: 600;
     color: var(--db-primary);
@@ -421,7 +407,6 @@
     margin-top: 0;
 }
 
-/* Steps container */
 .dashbot-bubble .db-steps-container {
     margin: 6px 0 10px;
     padding: 10px 12px;
@@ -439,7 +424,6 @@
     line-height: 1.45;
 }
 
-/* Numbered steps */
 .dashbot-bubble .db-step {
     display: flex;
     align-items: flex-start;
@@ -452,7 +436,6 @@
     border-bottom: none;
 }
 
-/* Alternative paragraph */
 .dashbot-bubble .db-alt {
     margin-top: 8px;
     padding-top: 8px;
@@ -481,7 +464,6 @@
     color: #374151;
 }
 
-/* Time highlight chip */
 .dashbot-bubble .db-time {
     display: inline-block;
     background: #ede9fe;
@@ -493,7 +475,6 @@
     white-space: nowrap;
 }
 
-/* Distance highlight chip */
 .dashbot-bubble .db-distance {
     display: inline-block;
     background: #dbeafe;
@@ -505,7 +486,6 @@
     white-space: nowrap;
 }
 
-/* Parking spots highlight */
 .dashbot-bubble .db-parking-highlight {
     display: inline-block;
     background: #dcfce7;
@@ -517,7 +497,6 @@
     white-space: nowrap;
 }
 
-/* Bullet items (lightweight, no card) */
 .dashbot-bubble .db-bullet {
     position: relative;
     padding: 6px 0 6px 16px;
@@ -546,7 +525,6 @@
     color: #1a1d27;
 }
 
-/* "Alternatively" label */
 .dashbot-bubble .db-alt-label {
     display: inline-block;
     font-weight: 700;
@@ -557,13 +535,11 @@
     margin-right: 2px;
 }
 
-/* "Total travel time" label */
 .dashbot-bubble .db-total-label {
     font-weight: 700;
     color: var(--db-primary);
 }
 
-/* Air quality highlight */
 .dashbot-bubble .db-air {
     display: inline-block;
     background: #d1fae5;
@@ -575,7 +551,6 @@
     white-space: nowrap;
 }
 
-/* Temperature highlight */
 .dashbot-bubble .db-temp {
     display: inline-block;
     background: #fef3c7;
@@ -587,7 +562,6 @@
     white-space: nowrap;
 }
 
-/* Count/sensor highlight */
 .dashbot-bubble .db-count {
     display: inline-block;
     background: #e0e7ff;
@@ -599,7 +573,6 @@
     white-space: nowrap;
 }
 
-/* Paragraph spacing */
 .dashbot-bubble .db-para {
     margin: 0 0 6px;
     line-height: 1.55;
@@ -610,7 +583,6 @@
     padding-bottom: 0;
 }
 
-/* Follow-up prompt */
 .dashbot-bubble .db-follow-up {
     margin-top: 10px;
     font-style: italic;
@@ -620,7 +592,6 @@
     font-size: 13px;
 }
 
-/* Info card (parking structured) */
 .dashbot-bubble .db-info-card {
     margin: 6px 0;
     padding: 8px 10px;
@@ -631,7 +602,6 @@
 .dashbot-bubble .parking-spot { font-weight: 600; color: #374151; margin-bottom: 3px; font-size: 13px; }
 .dashbot-bubble .free-spaces  { color: #16a34a; font-weight: 600; font-size: 13px; }
 
-/* Map links */
 .dashbot-bubble .map-link {
     display: inline-block;
     margin: 3px 0;
@@ -644,8 +614,6 @@
     transition: background 0.2s;
 }
 .dashbot-bubble .map-link:hover { background: var(--db-primary-light); }
-
-/* ---- Typing Indicator ---- */
 
 .dashbot-typing {
     display: none;
@@ -953,3 +921,4 @@
         max-width: unset;
     }
 }
+
