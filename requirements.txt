@@ -1,0 +1,23 @@
+numpy>=1.24.0
+requests>=2.31.0
+openai>=1.0.0
+
+# NLP & Embeddings
+sentence-transformers>=2.2.0
+
+# Neo4j Database
+neo4j>=5.0.0
+
+# Environment Variables (Security)
+python-dotenv>=1.0.0
+
+# FastAPI (for API server)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# Text-to-Speech (optional - for api.py)
+elevenlabs>=0.2.0
+
+# Additional utilities
+pathlib>=1.0.1
