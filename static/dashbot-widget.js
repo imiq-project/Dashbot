@@ -8,7 +8,7 @@ let isChatOpen = false;
 let userLocation = null;   // {lat, lon} or null
 let locationEnabled = false;
 
-// ---- Inject HTML ----
+//  HTML 
 const html = `
 <!-- Avatar Button -->
 <div class="dashbot-avatar" id="dashbotAvatar">
@@ -528,7 +528,7 @@ function formatBotMessage(content) {
     var f = content;
 
     // =============================================
-    // 1. Pre-processing: structured parking data & URLs
+    // 1. Pre-processing: structured parking data URLs
     // =============================================
     f = f.replace(
         /(\d+)\s+free\s+spaces?\s+at\s+the\s+(ParkingSpot:\w+):?\s*(\w+)?\s+location\s+\((https:[^)]+)\)/gi,
@@ -791,12 +791,11 @@ async function sendMessage() {
 
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
-        // Don't hide typing yet — wait for first token
         var bubble = null;
         var time = null;
         let fullText = '';
         var firstToken = true;
-        var ttsSentIndex = 0; // tracks how much text we've already sent to TTS
+        var ttsSentIndex = 0; 
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -876,7 +875,6 @@ async function sendMessage() {
             }
         }
 
-        // Fallback if no tokens came at all
         hideTyping();
         if (!fullText) {
             if (!bubble) {
@@ -907,3 +905,4 @@ async function sendMessage() {
 console.log('Dashbot widget initialized — base URL:', DASHBOT_BASE_URL);
 
 }
+
