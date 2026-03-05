@@ -1,0 +1,244 @@
+Otto von Guericke University Magdeburg (OVGU) - Institutional Overview
+Basic Information
+Official Name
+
+German: Otto-von-Guericke-Universität Magdeburg
+English: Otto von Guericke University Magdeburg
+Abbreviation: OVGU
+
+Key Facts
+
+Type: Public research university
+Founded: 1993 (one of Germany's youngest universities)
+Location: Magdeburg, capital city of Saxony-Anhalt, Germany
+Student Population: Approximately 13,000 students
+Number of Faculties: 9
+
+Namesake
+The university is named after Otto von Guericke, physicist and former mayor of Magdeburg, known for his pioneering work on vacuum technology and atmospheric pressure.
+
+Historical Background
+Foundation
+
+Established: 1993 through merger of three predecessor institutions
+Predecessor Institutions:
+
+Technical University
+University of Education
+Medical Academy
+
+
+
+Campus Structure
+Due to the three predecessor institutions, OVGU maintains three distinct campuses:
+
+Universitätsplatz - Main campus
+Universitätsklinikum - Medical campus/University Hospital
+Zschokkestrasse - Additional campus location
+
+European Integration
+
+Since 2022: Member of "EU Green" European university network
+Network Size: Nine universities total
+Purpose: Promote international cooperation to address future social challenges
+
+
+Academic Structure
+Nine Faculties
+
+Faculty of Computer Science (FIN)
+
+Focus: Information technology, software engineering, data science
+Relevant to IMIQ: AI, machine learning, autonomous systems
+
+
+Faculty of Economics and Management (FWW)
+
+Focus: Business administration, economics, management sciences
+Relevant to IMIQ: Mobility business models, transport economics
+
+
+Faculty of Humanities, Social Sciences and Education (FHW)
+
+Focus: Social sciences, education, cultural studies
+Relevant to IMIQ: Environmental psychology (Prof. Ellen Matthies), user behavior
+
+
+Faculty of Mathematics (FMA)
+
+Focus: Pure and applied mathematics, statistics
+Relevant to IMIQ: Optimization, modeling, simulation algorithms
+
+
+Faculty of Medicine (FME)
+
+Focus: Medical research, clinical practice, health sciences
+Campus: Universitätsklinikum (University Hospital)
+
+
+Faculty of Natural Sciences (FNW)
+
+Focus: Physics, chemistry, biology
+Relevant to IMIQ: Sensor technology, environmental monitoring
+
+
+Faculty of Mechanical Engineering (FMB)
+
+Focus: Mechanical systems, automotive engineering, robotics
+Relevant to IMIQ: Vehicle technology, autonomous systems
+
+
+Faculty of Process and Systems Engineering (FVST)
+
+Focus: Process engineering, systems engineering, logistics
+Relevant to IMIQ: Logistics systems (Prof. Hartmut Zadek), supply chain
+
+
+Faculty of Electrical Engineering and Information Technology (FEIT)
+
+Focus: Electrical engineering, automation, communication technology
+Relevant to IMIQ: Cognitive systems (Prof. Andreas Wendemuth), sensor systems, V2X communication
+
+
+
+
+Research Focus Areas
+Main Research Strengths
+OVGU is recognized for excellence in:
+
+Process Engineering
+Neurosciences
+Biosystems Technology
+Disease Prevention
+Automotive Research (directly relevant to IMIQ autonomous vehicles)
+Digital Engineering (directly relevant to IMIQ digital twin)
+Renewable Energies (relevant to IMIQ sustainable mobility)
+
+IMIQ-Relevant Research Expertise
+
+Intelligent Mobility: Autonomous driving, traffic systems
+Cognitive Systems: Human-machine interaction, AI
+Environmental Psychology: Behavior change, sustainability
+Logistics and Supply Chain: Transport optimization
+Data Science: Big data analytics, machine learning
+Communication Technology: 5G, V2X, sensor networks
+
+
+Rankings and Recognition
+International Rankings
+Times Higher Education World University Rankings:
+
+2024: 601–800 globally | 46–48 nationally (Germany)
+2026: 601–800 globally
+
+Notable Alumni and Faculty
+
+Axel Ockenfels: Leibniz Prize winner (Germany's highest research honor)
+
+
+Student Organizations and Support
+IKUS (Inter-Cultural Association)
+
+Purpose: Inter-cultural association for international students
+Activities:
+
+Cultural synergy promotion between countries
+Celebration of cultural festivals
+Country-specific days organized by foreign students
+Active student participation in cultural events
+
+
+
+MIPS (Magdeburg International PhD Students)
+
+Purpose: Network for international doctoral students at OVGU
+Services:
+
+Create and enhance contact between international PhD students
+Promote social and academic integration of young scientists
+Support and advice in various areas:
+
+Introduction to Magdeburg
+German language learning
+Scholarship information
+Job opportunities
+Academic networking
+
+
+
+
+
+Studentenwerk Magdeburg
+
+Type: Student services organization
+Services Provided:
+
+Mensa (Canteen): Affordable student meals
+Student Housing: 10+ dormitories near or on campus
+Location: Convenient access to university facilities
+Purpose: Support student welfare and living conditions
+
+
+
+
+OVGU in Context of IMIQ Project
+Institutional Advantages for IMIQ
+Research Infrastructure:
+
+Multiple relevant faculties (Computer Science, Engineering, Psychology)
+Established research networks (IMR, NIIMO)
+Existing facilities (Galileo Test Field, Digital Application Center)
+
+Geographic Position:
+
+Located in Magdeburg, capital of Saxony-Anhalt
+Access to Science Harbor district (IMIQ implementation site)
+Urban environment suitable for real-world mobility research
+
+Interdisciplinary Capability:
+
+Nine faculties enable cross-disciplinary collaboration
+Expertise spans technology, psychology, engineering, economics
+Strong tradition in applied research and industry cooperation
+
+European Integration:
+
+EU Green network membership
+International research collaborations
+European funding opportunities (EFRE)
+
+Young, Dynamic Institution:
+
+Founded 1993 - relatively young and adaptive
+Modern research approaches
+Innovation-oriented culture
+Strong focus on practical applications
+
+
+Campus Geography for IMIQ
+Three-Campus Structure
+Universitätsplatz (Main Campus):
+
+Central academic buildings
+Most faculties located here
+Connected to Science Harbor via IMIQ autonomous shuttle route
+Dense urban environment for mobility testing
+
+Universitätsklinikum (Medical Campus):
+
+University Hospital
+Faculty of Medicine
+Potential for medical transport use cases
+
+Zschokkestrasse Campus:
+
+Additional facilities
+Part of larger campus network
+
+Science Harbor Proximity
+
+Strategic Location: Adjacent to main campus
+IMIQ Real Laboratory: Located in Science Harbor
+Connection: Autonomous shuttle test route links campus to Science Harbor
+Development: New urban quarter in active development
+Research Opportunity: Real-world testbed for intelligent mobility solutions

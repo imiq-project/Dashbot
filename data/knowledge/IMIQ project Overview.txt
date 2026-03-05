@@ -1,0 +1,889 @@
+IMIQ Project - Detailed Summary and Key Sections Translation
+Executive Summary
+Project Title: IMIQ - Intelligent Mobility Space in the District (Intelligenter Mobilitätsraum im Quartier)
+Two Main Components:
+
+IMIQ-RIM: Real Laboratory for Intelligent Mobility
+IMIQ-DWLZ: Digital Work-Life Twin
+
+Location: Science Harbor (Wissenschaftshafen), Magdeburg
+Lead Institution: Otto-von-Guericke University Magdeburg
+
+Project Goals (Section 1b)
+Main Objective
+Develop and test innovative mobility and communication approaches that create a holistic mobility and communication experience through sensors, 5G, and digital services, while promoting social interaction locally.
+Key Challenges Addressed:
+
+Increasing traffic volume in Germany with high share of motorized individual traffic
+Demographic change and urbanization
+Economic and ecological challenges - balancing low costs with flexibility and low emissions
+Safety improvements - reducing accidents and fatalities
+Digitalization of mobility services (Mobility-as-a-Service)
+
+Future Mobility Characteristics:
+The project aims to develop mobility that is:
+
+Efficient and organized
+Electric
+Automated
+Connected
+Safe
+Collectively and universally usable
+
+
+Our Approach - Two Main Research Strands
+A: Real Laboratory for Intelligent Mobility (RIM)
+Core Features:
+
+Autonomous shuttle bus operation in Science Harbor district
+Integration with University campus via public roads
+Level 4 SAE autonomy (fully autonomous in defined conditions)
+Remote Operation Control Center (OCC) monitoring
+Comprehensive sensor infrastructure
+5G test field for real-time communication
+
+Key Technologies:
+
+Autonomous Vehicles:
+
+Small electric shuttle buses
+Large-scale line buses (12m)
+Cargo transport robot vehicles
+Complete handover processes for goods
+
+
+Infrastructure:
+
+Road Side Units (RSU) throughout the district
+5G/G5 communication networks
+V2X (Vehicle-to-Everything) technology
+Comprehensive sensor systems (cameras, LiDAR, radar)
+
+
+Operation Control Center:
+
+Remote monitoring of all autonomous vehicles
+Manufacturer-independent platform
+Real-time communication with passengers
+Teleoperation capabilities for precise positioning
+
+
+Data Infrastructure:
+
+Real-time data capture and processing
+Integration with Digital Work-Life Twin
+AI and machine learning for continuous improvement
+"Learning real laboratory" for intelligent mobility
+
+
+
+B: Digital Work-Life Twin (DWLZ)
+Purpose:
+Creates a virtual model combining movement and business processes, socio-technical participation processes, and existing/future aspects of the Science Harbor district.
+Goes Beyond Traditional Digital Twins:
+
+Not just machine/logistics bidirectional real-time connection
+Includes socio-technical and anticipatory co-development
+Integrates user needs and behaviors
+Enables scenario simulation and system optimization
+
+Development Stages (Maturity Model):
+Stage 1 - Mapping:
+
+Map mobility-related objects
+Use real usage and observation data
+Build co-twin for all private and business mobility processes
+Continuous RIM data and infrastructure integration
+Collect needs scenarios for different user groups
+Use Big Data and Data Analytics
+Develop personalized IT solutions
+
+Stage 2 - Simulation:
+
+Simulate processes and scenarios
+Test business models and services
+Integrate new participation formats for user groups
+Implement needs-based participation possibilities
+Use AI, algorithms, and app development
+Conduct "what-if" scenarios for mobility
+Consider air quality with sensors
+
+Stage 3 - Personalization:
+
+Integrate individual users personally
+Use BDI agents (intelligent virtual actors)
+Optimize movement profiles in Science Harbor
+Develop user-specific personalized interfaces (DIN EN ISO 9241 Usability)
+Create interfaces to the "4Ws" (Living, Business, Science, Wellbeing)
+Integrate practical scenarios meeting user needs
+
+
+Work Packages Overview
+AP 1: Requirements for RIM, DWLZ and Use-Cases
+Responsible: Ellen Matthies / Andreas Wendemuth
+Sub-packages:
+
+1.1: Mobility Challenges
+1.2: Stakeholders and Their Needs
+1.3: Real Laboratory Requirements
+1.4: DWLZ Requirements
+1.5: Co-Design RIM – DWLZ
+1.6: Data Format Definition for DWLZ
+
+Key Activities:
+
+Identify challenges and requirements for intelligent mobility in districts
+Define stakeholders (future residents, workers, delivery services, tourists, visitors, children, elderly, companies, transport operators, city administration, service providers)
+Conduct expert interviews and focus groups with potential users
+Create specifications for transformative real laboratory
+Define data formats and interfaces
+Establish framework for use cases
+
+AP 2: Specifications and Procurement for Real Laboratory
+Responsible: Hartmut Zadek / Andreas Müller
+Sub-packages:
+
+2.1: Autonomous Vehicles and Technical Interfaces
+2.2: Sensors and Sensor Integration
+2.3: Localization and Tracking
+2.4: V2X and Communication Technologies
+2.5: Operation Control Center (OCC)
+2.6: IT Infrastructure
+2.7: Infrastructure Integration
+
+Key Deliverables:
+
+Specifications for autonomous vehicles (passenger and cargo)
+Sensor systems (360° LiDAR, cameras, radar)
+RSU (Road Side Units) installation plan
+5G/ITS-G5 communication infrastructure
+OCC development requirements
+High-resolution 3D mapping of district
+Mobility station integration
+
+AP 3: Specifications and Procurement for Digital Work-Life Twin
+Responsible: Andreas Nürnberger / Benjamin Noack
+Sub-packages:
+
+3.1: Big Data and Data Analytics
+3.2: Software Architecture Digital Twin
+3.3: AI Methods and Algorithms
+3.4: Mobility Needs and Co-Development of Services
+3.5: Human Profiling and Modeling
+
+Key Activities:
+
+Develop interaction analysis from personal data (speech, facial expressions, gestures, pose)
+Analyze mobility data (usage behavior, reliability, transport duration)
+Define technical prerequisites for Digital Twin
+Model technical processes AND people with individual characteristics
+Implement AI methods for tracking mobility activities
+Conduct focus groups and standardized surveys
+Create user agent models (potentially BDI agents)
+
+AP 4: Installation, Test Operation, Evaluations
+Responsible: Hartmut Zadek / Andreas Müller / Andreas Wendemuth
+Use Cases:
+Use Case 1 - Individual Public Transport (IÖV):
+
+Small autonomous electric shuttle buses
+Connection from Science Harbor to University campus via public roads
+Integration with tram line 2
+Cargo transport robot vehicles
+Level 4 autonomous operation
+Operation Control Center monitoring
+Real-time communication via 5G/G5
+AI-based learning and optimization
+
+Use Case 2 - Mobile Daily Planning in the District (MTQ):
+
+Simulate work processes, service usage, and mobility for different target groups
+Model scenarios for what could be possible in a fully populated district
+Integration of real-time sensor data, wearables, IoT devices
+Digital representation of district and mobility infrastructure
+Simulate daily schedules for different stakeholders:
+
+Future residents
+Workers
+Delivery services
+Tourists
+Children and elderly
+Companies
+Transport operators
+City administration
+Service providers
+
+
+
+Example Scenarios:
+
+Optimize autonomous bus line (capacity, routing, frequency)
+Daily planning options for different user needs
+Multi-party voting for addressing different needs
+MaaS (Mobility as a Service) concepts
+Alternative options when connections don't work (e.g., taxi for small groups)
+Acceptance studies for longer waiting times
+
+AP 5: Further Development and Optimization
+Responsible: Benjamin Noack / Ellen Matthies / Andreas Nürnberger
+Sub-packages:
+
+5.1: Development of Assistance Systems
+5.2: Simulation Models
+5.3: Socio-Technical Developments
+5.4: Vehicle Components and Automation
+5.5: Extension of V2X and Communication Technology
+5.6: Function Extension of Operation Control Center
+5.7: Infrastructure Further Development
+
+Key Activities:
+5.1 Assistance Systems:
+
+Dialog-based speech assistance system
+Barrier-free interaction with DWLZ
+Integration with transport company databases
+User profile integration with continuous adaptation
+Natural Language Generator with generative AI
+
+5.2 Simulation Models:
+
+Model district data, user behavior, logistics, infrastructure needs
+Integrate different models into situational awareness model
+Tools for trend analyses and business models
+Planning tools for temporal/spatial projections
+Dynamic visualization tools
+AR/VR device integration
+AI and learning procedures backbone
+
+5.3 Socio-Technical Developments:
+
+Co-evaluation methods
+User surveys and panels
+Focus groups and workshops
+Integration of all research teams
+Ensure digital sovereignty of participants
+Develop new mobility services with added value
+
+5.4 Vehicle Components:
+
+Continuous improvement of automated systems
+Object recognition and tracking
+Sensor integration and path planning
+Enhanced robustness against weather conditions
+Integration into overall system
+
+5.5 V2X Technology Enhancement:
+
+5G and 6G antenna expansion
+Real-time performance improvement
+Latency analysis and optimization
+Infrastructure and vehicle interaction
+Data integration and security
+
+5.6 OCC Function Extension:
+
+Develop additional functions prioritized by stakeholder requirements
+Consider rural area requirements
+Teleoperation development
+Remote steering capabilities
+VDV guideline communication standards
+
+5.7 Infrastructure Development:
+
+Continuous adaptation for technological improvements
+Rural area requirement implementation
+Modern, state-of-the-art intelligent traffic technology
+Model character for transfer to other regions
+
+AP 6: Transfer
+Responsible: Andreas Wendemuth / Hartmut Zadek / Andreas Müller
+6.1 TACT Transfer Generator:
+TACT = Think & Activate & Check & Transfer
+
+Institutionalized point of contact for sustainable mobility solutions
+Low-threshold access for citizens, experts, municipal representatives, founders, entrepreneurs
+Activation of existing actors and networking with new actors
+Transfer of research findings to the region
+
+6.2 Transfer Events:
+
+Regular workshops
+Specialized symposia
+Open district days
+Dialogue between science, society, and business
+Targeting public, political actors, journalists, and researchers
+
+6.3 Public Relations:
+
+Website creation and maintenance
+Presentations at conferences, exhibitions, fairs
+Press releases and press conferences
+Social media presence
+Documentation for authorities, associations, ministries
+Focus on legal and administrative requirements
+
+
+Key Milestones
+
+Month 9: Requirements for RIM, DWLZ and Use-cases completed
+Month 15: Specifications and procurement for Real Laboratory & core DWLZ elements completed
+Month 22: Components prototypically realized
+Month 30: RIM & DWLZ demonstrator built
+Month 36: First test and evaluation phase completed
+Month 42: Second test and evaluation phase completed
+Month 48: Complete testing and evaluation finished, final report available
+
+Symposia: Months 9, 21, 33, 45
+
+Budget Overview (2024-2027)
+IMIQ-RIM (Real Laboratory)
+Total Investment: €3,990,000
+
+Autonomous vehicles: €750,000
+Sensor development/integration: €100,000
+V2X/Communication technology: €810,000
+Operation Control Center: €500,000
+IT Infrastructure: €80,000
+Infrastructure integration/mobility stations: €720,000
+Digital Twin/Cobots: €400,000
+Big Data/Analytics: €200,000
+AI/Algorithms: €100,000
+Small construction measures: €180,000
+Data security: €50,000
+
+Personnel: €998,000
+
+3 Technical staff (E11)
+2 Student assistants
+
+Total IMIQ-RIM: €4,988,000
+IMIQ-DWLZ (Digital Work-Life Twin)
+Personnel: €6,659,000
+
+17 Scientific staff (E13/14)
+0.5 Economics staff (E9b)
+15 Student assistants
+
+Overhead (40% of personnel): €2,663,600
+Total IMIQ-DWLZ: €9,322,600
+GRAND TOTAL PROJECT: €14,310,600
+
+Scientific Goals and Innovation
+International Competitiveness
+According to researcher Christian Creß's international comparison of test fields for automated and autonomous driving:
+
+40 test fields identified globally
+Germany has 26 test fields (one of the leading countries)
+UNIQUE ASPECT: No other test field focuses holistically on mobility processes in districts as IMIQ does
+Most test fields focus on vehicles, components, V2X, and radio technologies
+
+Expected Scientific Results
+
+Evaluation and Optimization of Mobility Concepts:
+
+Test and assess new mobility solutions in real environment
+Evaluate performance, efficiency, and user acceptance
+Generate scientific knowledge about effectiveness of different mobility approaches
+
+
+Traffic Optimization and Management:
+
+Analyze and optimize traffic flows using real-time data
+Develop intelligent traffic management systems
+Reduce congestion, improve traffic performance and safety
+
+
+User-Centered Design of Mobility Solutions:
+
+Integrate user needs and preferences into development
+Create tailored solutions through user feedback and data
+Generate knowledge about user-centered design of mobility services
+
+
+Co-Design and Participatory Research:
+
+Implement co-design oriented and participatory research approaches
+Involve users, communities, and stakeholders in research design
+Generate knowledge about participatory research methods and impacts
+
+
+Third-Party Funding Capability:
+
+Create outstanding research environment in Magdeburg and Saxony-Anhalt
+Increase ability to secure DFG group funding and similar programs at federal/EU level
+Serve as blueprints and best practice examples
+Strengthen research landscape visibility and reputation
+
+
+
+Contribution to Lead Market "Mobility and Logistics" (RIS Saxony-Anhalt)
+Direct Alignment with Regional Innovation Strategy:
+
+Focus on climate neutrality, resource efficiency, and digitalization
+Development of intelligent traffic systems
+Autonomous driving
+Smart transport and logistics solutions
+Alternative drive systems
+
+Core Areas Addressed:
+
+Intelligent traffic systems
+Autonomous driving
+Alternative mobility concepts
+
+Strategic Goals:
+
+Intelligent, environmentally compatible traffic
+Increasing urban (and aging) population
+Increasing location attractiveness
+Growing mobility needs
+Structural change support
+
+Technology and Knowledge Transfer
+Transfer Mechanisms:
+
+TACT transfer generator (institutionalized contact point)
+Network and networking initiatives
+Close cooperation with regional initiatives:
+
+Galileo Test Field Saxony-Anhalt
+IMR interdisciplinary research network
+ifak institute (Traffic & Assistance business area)
+
+
+
+Expected Impact:
+
+Rapid implementation of innovations
+Collaboration between research institutions, companies, and other actors
+Transfer to rural areas
+Development and implementation of complementary tools, technologies, and services
+
+Contribution to UN Sustainability Goals (SDGs)
+Particularly Goal 11 (Sustainable Cities and Communities):
+
+Innovative approaches for sustainable mobility
+Efficient resource utilization
+Social integration
+Positive impact on environment, society, and economy
+
+
+Key Technologies and Methods
+RIM Technologies
+1. Autonomous Vehicles:
+
+SAE Level 4 (high automation in defined conditions)
+Various vehicle types: shuttle buses, line buses (12m), cargo robots
+Equipped with sensors (LiDAR, cameras, radar)
+Electric drive systems
+
+2. Sensor Systems:
+
+Mono cameras
+360° Multi-Layer LiDAR systems
+Long-Range 3D/4D Imaging Radars
+Complementary sensor systems
+Weather and light-resistant through sensor fusion
+Local preprocessing for privacy protection
+Track-level fusion
+
+3. Communication:
+
+5G campus network (first in Saxony-Anhalt)
+ITS-G5 (WLAN-based vehicle networking)
+V2X (Vehicle-to-Everything) technology
+RSU (Road Side Units) throughout district
+Real-time data transmission
+
+4. Operation Control Center:
+
+Remote monitoring and control
+Manufacturer-independent platform
+ROS/ROS2 programming language
+Real-time passenger communication
+Teleoperation for precise positioning
+VDV guideline compliance
+
+5. Infrastructure:
+
+High-resolution 3D mapping of entire district
+Physical route preparation for autonomous driving
+Digital infrastructure modernization
+Mobility stations
+Environmental sensors (weather, particulate matter, air quality)
+
+DWLZ Technologies
+1. Software Architecture:
+
+Integration of various domain data
+Real-time and usage data platform
+Model of technical processes AND people
+Interaction analysis for automatic needs recognition
+Individual process optimization
+Access and interfaces for real data
+Implementation interfaces for AI and learning procedures
+
+2. Data Formats:
+
+Standardized formats for RIM and DWLZ interaction
+Parameters for simulation models
+Critical states and events definition
+Long-term recording and storage
+External accessibility for stakeholders
+Integration with federal/state mobility platforms
+
+3. Human Modeling:
+
+Parameterizable agent models
+BDI agents (Behavior-Desire-Intention)
+Adaptation through data analysis and AI
+Individual user representation
+Needs, wishes, and intentions modeling
+Interaction behavior patterns
+
+4. AI and Algorithms:
+
+Image and point cloud-based traffic participant recognition
+Interaction analysis
+Pattern and intention recognition (questioning, demanding, negotiating)
+Prediction of utilization, usage behavior, traffic flows
+Learning algorithms
+
+5. Simulation:
+
+District data modeling
+User behavior modeling
+Logistics and infrastructure needs
+Integration into situational awareness model
+Tools for trend analyses and business models
+Planning tools for temporal/spatial projections
+Dynamic visualization tools
+Validation programs for scenarios
+
+6. Digital Sovereignty:
+Defined as "the capabilities and possibilities of individuals and institutions to exercise their role(s) in the digital world independently, self-determinedly, and securely"
+Implementation:
+
+Participants as equal research and interaction partners
+Idealistic/altruistic value (contribution to system optimization)
+Individual/egocentric value (easier/extended usage functions, competence building)
+Self-determination in providing data
+Clear objection rights
+Simple implementation of consent
+
+
+Stakeholder Integration
+Identified Stakeholder Groups:
+
+Future residents of Science Harbor district
+Workers (commuting to district)
+Delivery services
+Tourists
+General public as visitors
+Children
+Elderly people
+Companies located in district
+Transport operators
+City of Magdeburg administration
+Service providers
+Transit traffic
+
+Integration Methods:
+
+Expert interviews (AP 1.2)
+Focus groups with potential users (AP 1.2, 3.4)
+Standardized surveys (AP 3.4, 4.2)
+Interactive workshops (AP 3.4, 6.2)
+Continuous feedback loops
+Co-development processes
+Multi-party voting mechanisms
+
+
+Existing Structures and Cooperation
+Knowledge Network "Intelligent Mobility Space" (IMR)
+
+Comprehensive improvement of mobility systems
+Considers living conditions of all involved
+Sustainable and environmentally compatible mobility
+Cooperation network with multidisciplinary scientific perspectives
+Regional practice expertise
+Model region for future mobility
+
+Network Initiative "Intelligent Mobility Saxony-Anhalt" (NIIMO)
+
+Alliance of competence holders
+Practice-oriented innovations
+Addressing structural change challenges
+Founded by OVGU and NASA (Nahverkehrsservice Saxony-Anhalt GmbH)
+
+Science Harbor Magdeburg
+
+Urban district combining living, working, research, and lifestyle
+Special atmosphere considering mobility aspects
+Direct connection to University campus
+Development of modern institutes and "think tank"
+
+Galileo Test Field / Digital Application Center (GATE/DAZ)
+
+One of six national test centers for European GALILEO satellite system
+Interdisciplinary research platform of OVGU
+Application-oriented research and development
+Focus: sustainability, digitalization, infrastructure networking
+First 5G campus network in Saxony-Anhalt
+Expertise in ITS/C-ROADS technologies
+Experience with autonomous shuttles
+
+ifak (Institute for Automation and Communication)
+
+Founded 1991 as independent research institute
+Non-profit research institution (~50 employees)
+Applied research in ICT & Automation and Traffic & Assistance
+Long experience with vehicle and pedestrian routing
+Car2X communication expertise
+Member of FGSV and Car2Car Communication Consortium
+
+ego.-Incubator IP-LogMo
+
+Facility for developing intelligent prototypes
+Optimal conditions for transport and mobility solution prototypes
+Mobile machine tools
+Assembly area for aluminum and steel processing
+Prototype workshop with hand tools for wood processing
+
+
+Project Team - Lead Scientists
+Prof. Dr. Andreas Wendemuth - Cognitive Systems
+
+Institute for Information and Communication Technology
+Research: Hardware optimization, pattern recognition, human-machine interaction
+Continuous speech recognition
+Affect recognition from speech and multimodal data
+Intelligent dialogue management
+Neural and deep learning architectures
+Co-speaker of DFG SFB TRR 62 "Companion Technology" (2009-2017)
+Speaker of Cluster "Intentional Anticipatory Interactive Systems" (since 2018)
+
+Prof. Dr. Ellen Matthies - Environmental Psychology
+
+Professor since 2011 at OVGU
+100+ publications in applied social and environmental psychology (H-Index: 35)
+Focus on climate protection-relevant behaviors
+DFG project "TRAFFIX - Genesis of Transport Mode Fixations"
+Current: TraMocee project on mobility behavior transformation
+Coordinator in multidisciplinary projects on innovation acceptance in transport
+Evaluated autonomous cargo bike acceptance (AuRa project)
+
+Andreas Müller - Digital Application Center Mobility/Logistics/Industry
+
+GATE/DAZ manager
+Origin: One of six national Galileo test centers
+Focus: Logistics and mobility with positioning, navigation, communication technologies
+Expertise in ITS-V2X technology
+Project ANIKA (Emergency call infrastructure for V2X communication)
+GATEmobil/TF Urban Magdeburg (2019-2022)
+Current: Digital Test Fields on Federal Waterways (DTW-Elbe)
+PASCAL project (Proactive Smart Controller for Traffic Lights)
+
+Prof. Dr. Benjamin Noack - Autonomous Multisensor Systems
+
+Research group in Faculty of Computer Science
+Main research: Distributed estimation approaches for multisensor data fusion
+Navigation and tracking
+Modern estimation and learning methods for autonomous driving
+Intelligent transport and industrial process automation
+Kalman filtering and nonlinear estimation
+Decentralized data fusion in mobile systems and ad-hoc sensor networks
+
+Prof. Dr. Andreas Nürnberger - Data & Knowledge Engineering (DKE)
+
+Long experience in data analysis and interactive information systems development
+Projects: SFB TRR 62 Companion Technology, ViERforES, MUMIA, IAIS
+KiJuAssistenz project (digital support for pedagogical work)
+Developed systems for information analysis and search
+Dynamic adaptation to user knowledge and capabilities
+Frameworks for analysis and simulation
+
+Prof. Dr. Hartmut Zadek - Logistics
+
+Chair for Logistics at Institute for Logistics and Material Handling Technology
+Engineering aspects of logistics and mobility
+Research focus: Modeling, simulation, and design of logistics processes, systems, networks
+Logistics information and control systems
+Energy efficiency and sustainability in logistics and transport
+25+ years experience with driverless transport systems
+EFRE projects AS-NaSA and AS-UrbanÖPNV (automated shuttle buses in Saxony-Anhalt)
+Experience with operation control center concepts
+Paket-KV-MD2 project (last-mile delivery with micro-depots)
+
+
+Innovation and Uniqueness
+What Makes IMIQ Unique:
+
+Holistic Approach:
+
+Not just vehicles and technology
+Focuses on complete mobility processes
+Integrates all stakeholder perspectives
+Combines real laboratory with digital twin
+
+
+Real Laboratory + Digital Twin Combination:
+
+Physical testing environment (RIM)
+Virtual simulation and planning (DWLZ)
+Bidirectional learning and optimization
+User experience in real environment
+Scenario testing in digital environment
+
+
+District-Level Focus:
+
+Defined, manageable test environment (Science Harbor)
+Scalable to larger areas
+Real urban setting with actual users
+Integration of living, working, research
+
+
+Socio-Technical Innovation:
+
+Not just technical development
+Integration of user needs from the start
+Co-design and participatory research
+Digital sovereignty of participants
+
+
+Learning Real Laboratory:
+
+AI and machine learning integration
+Continuous improvement through real-world data
+Adaptation to new situations and environments
+First learning real laboratory for intelligent mobility in Germany
+
+
+Comprehensive Mobility Ecosystem:
+
+Autonomous shuttles (passengers and cargo)
+Integration with existing public transport
+Mobility stations
+Last-mile solutions
+Micro-mobiles (delivery robots)
+
+
+Individual Public Transport (IÖV) Concept:
+
+Combines ÖPNV cost advantages with MIV flexibility
+On-demand services
+Addresses first and last mile problems
+Continuous operation without driver breaks
+
+
+
+
+Expected Outcomes and Impact
+Scientific Outcomes:
+
+6-8 doctoral theses
+40-60 scientific publications
+Conference presentations and workshops
+International research collaborations
+Basis for follow-up funding (DFG, EU, federal programs)
+
+Practical Outcomes:
+
+Operational autonomous shuttle service in Science Harbor
+Functioning Operation Control Center
+Digital Work-Life Twin for district planning and optimization
+Apps and assistance systems for users
+Transfer guidelines and best practices
+Infrastructure solutions transferable to other districts
+
+Regional Impact:
+
+Strengthening Saxony-Anhalt as innovation location
+Attracting skilled workers
+Creating startup opportunities
+Supporting structural change
+Positioning in lead market "Mobility and Logistics"
+
+Transfer and Scalability:
+
+Solutions transferable to other urban districts
+Concepts applicable to rural areas
+Export of knowledge and technology to other regions
+TACT transfer generator for sustainable knowledge transfer
+Best practice examples for other municipalities
+
+
+Risk Management
+Technical Risks:
+
+Autonomous vehicle approval process
+Weather and environmental condition challenges
+Sensor reliability
+Communication network stability
+
+Mitigation:
+
+Staged approach starting with closed test area
+Comprehensive sensor fusion
+Redundant communication systems
+Continuous testing and improvement
+
+Organizational Risks:
+
+Stakeholder coordination
+Public acceptance
+Regulatory requirements
+
+Mitigation:
+
+Early stakeholder integration
+Public relations and open district days
+Close cooperation with city administration
+Transfer generator TACT for continuous dialogue
+
+Scientific Risks:
+
+Complexity of socio-technical system
+User behavior unpredictability
+Integration of RIM and DWLZ
+
+Mitigation:
+
+Iterative development approach
+Continuous evaluation and adaptation
+Expert team with complementary expertise
+Regular workshops and focus groups
+
+
+Timeline Summary
+Phase 1 (Months 1-15): Planning and Specification
+
+Requirements analysis
+Stakeholder identification
+Specifications for RIM and DWLZ
+Procurement preparation
+
+Phase 2 (Months 16-30): Implementation
+
+Infrastructure installation
+Vehicle acquisition and preparation
+OCC development
+DWLZ software development
+Initial testing on closed area
+
+Phase 3 (Months 31-42): Testing and Evaluation
+
+Public road operation
+Use Case 1 (IÖV) implementation
+Use Case 2 (MTQ) implementation
+Data collection and analysis
+User studies
+
+Phase 4 (Months 43-48): Optimization and Transfer
+
+System improvements
+Final evaluations
+Transfer activities
+Documentation and publication
+Final symposium
