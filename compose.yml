@@ -2,7 +2,19 @@ services:
   app:
     build: .
     ports:
-      - 5000:5000
+      - 8000:8000
     env_file:
       - .env
-    image: ghcr.io/imiq-project/dashbot:latest
+    restart: unless-stopped
+    environment:
+      # Signal to any code that cares that we're in Linux-production mode
+      # (uvloop + httptools loaded by the Dockerfile CMD).
+      UVICORN_WORKERS: "4"
+      UVICORN_LOOP: "uvloop"
+      UVICORN_HTTP: "httptools"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://127.0.0.1:8000/status\", timeout=3).status==200 else 1)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

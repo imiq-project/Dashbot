@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashbot map test</title>
+    <!-- Leaflet (same CDN the IMIQ dashboard uses) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Dashbot widget styles -->
+    <link rel="stylesheet" href="/static/dashbot-widget.css?v=maptest" />
+    <style>
+        html, body, #map { height: 100%; margin: 0; }
+    </style>
+</head>
+<body>
+    <!-- Local stand-in for the dashboard. The widget draws onto the page-global
+         Leaflet `map` declared below — exactly like the real IMIQ dashboard. -->
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="/static/dashbot-widget.js?v=maptest"></script>
+    <script type="application/javascript">
+        // Page-global `const map` (classic script) — this is the exact handle
+        // the widget's getLeafletMap() looks for.
+        const map = L.map('map', { center: [52.139, 11.645], zoom: 14 });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors © CARTO'
+        }).addTo(map);
+
+        // Mount the widget on the map, pointed at THIS local backend (same origin).
+        initDashbot({ backendUrl: window.location.origin + '/chat', element: '#map' });
+    </script>
+</body>
+</html>

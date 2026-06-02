@@ -1,11 +1,58 @@
 numpy>=1.24.0
 requests>=2.31.0
 openai>=1.0.0
-sentence-transformers>=2.2.0
+
+# NLP & Embeddings
+sentence-transformers==3.3.1
+
+# Neo4j Database
 neo4j>=5.0.0
+
+# Environment Variables (Security)
 python-dotenv>=1.0.0
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+
+# FastAPI (for API server)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
 pydantic>=2.0.0
-elevenlabs>=0.2.0
+
+# LangGraph + LangChain (multi-agent orchestration)
+# Pinned as a matched set. 0.6.x prebuilt needs langgraph._internal which
+# landed in langgraph 0.6.x core; 1.x ecosystem is a separate major bump
+# we haven't migrated to yet.
+langgraph>=0.6.0,<0.7.0
+langgraph-prebuilt>=0.6.0,<0.7.0
+langgraph-checkpoint>=2.1.0,<3.0.0
+langgraph-sdk>=0.2.0,<0.3.0
+langchain-openai==0.3.10
+langchain-core>=0.3.48,<1.0.0
+langchain-mcp-adapters>=0.1.0,<0.2.0
+
+# MCP tool servers
+fastmcp>=0.5.0
+httpx==0.28.1
+httptools==0.6.4
+
+# Retry logic
+tenacity==9.0.0
+
+# LangGraph checkpointing
+aiosqlite>=0.20.0
+
+# Observability
+langfuse>=2.0.0
+
+# Additional utilities
 pathlib>=1.0.1
+
+# Production ASGI event loop (Linux/macOS only — not available on Windows)
+uvloop==0.21.0; sys_platform != 'win32'
+
+# Optional: distributed rate limiter backend. Activated only when REDIS_URL is set.
+redis>=5.0.0
+
+# OSM ingestion pipeline (used by ingestion/ — populates Neo4j topology from OSM/GTFS/Wikidata)
+osmnx>=2.0.0
+shapely>=2.0.0
+geopandas>=1.0.0
+rapidfuzz>=3.0   # fuzzy name matching for duplicate detection

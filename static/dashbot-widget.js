@@ -4,6 +4,7 @@ const DASHBOT_BASE_URL = options.backendUrl.replace(/\/chat\/?$/, '');
 const root = options.element ? document.querySelector(options.element) : document.body;
 
 let sessionId = null;
+let sessionToken = null;
 let isChatOpen = false;
 let userLocation = null;   // {lat, lon} or null
 let locationEnabled = false;
@@ -12,17 +13,7 @@ let locationEnabled = false;
 const html = `
 <!-- Avatar Button -->
 <div class="dashbot-avatar" id="dashbotAvatar">
-    <div class="avatar-glow"></div>
-    <div class="avatar-inner">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-            <rect x="2" y="6" width="20" height="12" rx="3" stroke="white" stroke-width="1.5"/>
-            <circle cx="8.5" cy="12" r="2" fill="white"/>
-            <circle cx="15.5" cy="12" r="2" fill="white"/>
-            <path d="M9 16.5C9 16.5 10.5 18 12 18C13.5 18 15 16.5 15 16.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="4" y1="6" x2="6" y2="2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="20" y1="6" x2="18" y2="2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-    </div>
+    <div class="avatar-inner"></div>
     <div class="avatar-status-dot"></div>
     <div class="avatar-tooltip">Ask the Smart City</div>
 </div>
@@ -31,14 +22,7 @@ const html = `
 <div class="dashbot-panel" id="dashbotPanel">
     <div class="dashbot-panel-header">
         <div class="dashbot-header-left">
-            <div class="dashbot-header-avatar">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="6" width="20" height="12" rx="3" stroke="white" stroke-width="1.5"/>
-                    <circle cx="8.5" cy="12" r="2" fill="white"/>
-                    <circle cx="15.5" cy="12" r="2" fill="white"/>
-                    <path d="M9 16.5C9 16.5 10.5 18 12 18C13.5 18 15 16.5 15 16.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </div>
+            <div class="dashbot-header-avatar"></div>
             <div class="dashbot-header-info">
                 <h2>Dashbot</h2>
                 <span class="dashbot-header-status"><span class="dot"></span> Online</span>
@@ -63,16 +47,7 @@ const html = `
 
     <div class="dashbot-messages" id="dashbotMessages">
         <div class="dashbot-welcome" id="dashbotWelcome">
-            <div class="dashbot-welcome-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="6" width="20" height="12" rx="3" stroke="#7a003f" stroke-width="1.5"/>
-                    <circle cx="8.5" cy="12" r="2" fill="#7a003f"/>
-                    <circle cx="15.5" cy="12" r="2" fill="#7a003f"/>
-                    <path d="M9 16.5C9 16.5 10.5 18 12 18C13.5 18 15 16.5 15 16.5" stroke="#7a003f" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="4" y1="6" x2="6" y2="2" stroke="#7a003f" stroke-width="1.5" stroke-linecap="round"/>
-                    <line x1="20" y1="6" x2="18" y2="2" stroke="#7a003f" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </div>
+            <div class="dashbot-welcome-icon"></div>
             <h3>Hey there!</h3>
             <p>I'm your smart city assistant. Ask me about parking, weather, traffic, campus buildings, routes, and more.</p>
             <div class="dashbot-quick-actions">
@@ -93,7 +68,7 @@ const html = `
     </div>
 
     <div class="dashbot-typing" id="dashbotTyping">
-        <div class="dashbot-typing-dots"><span></span><span></span><span></span></div>
+        <div class="db-typing-wave"><span></span><span></span><span></span><span></span><span></span></div>
         <span class="dashbot-typing-text">Dashbot is thinking...</span>
     </div>
 
@@ -121,7 +96,6 @@ const html = `
                 <svg id="dashbotSendIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                 </svg>
-                <div class="dashbot-send-spinner" id="dashbotSpinner" style="display:none;"></div>
             </button>
         </div>
     </div>
@@ -137,8 +111,6 @@ const closeBtn    = document.getElementById('dashbotCloseBtn');
 const messages    = document.getElementById('dashbotMessages');
 const input       = document.getElementById('dashbotInput');
 const sendBtn     = document.getElementById('dashbotSendBtn');
-const sendIcon    = document.getElementById('dashbotSendIcon');
-const spinner     = document.getElementById('dashbotSpinner');
 const typing      = document.getElementById('dashbotTyping');
 const resetBtn    = document.getElementById('dashbotResetBtn');
 const locationBtn = document.getElementById('dashbotLocationBtn');
@@ -167,6 +139,7 @@ async function startSession() {
         });
         const data = await res.json();
         sessionId = data.session_id;
+        sessionToken = data.session_token;
     } catch (e) {
         sessionId = 'default';
     }
@@ -175,8 +148,12 @@ async function startSession() {
 startSession();
 
 window.addEventListener('beforeunload', () => {
-    if (sessionId && sessionId !== 'default') {
-        navigator.sendBeacon(DASHBOT_BASE_URL + '/session/end?session_id=' + sessionId);
+    if (sessionId && sessionId !== 'default' && sessionToken) {
+        fetch(DASHBOT_BASE_URL + '/session/' + encodeURIComponent(sessionId) + '/end', {
+            method: 'POST',
+            headers: { 'X-Session-Token': sessionToken },
+            keepalive: true,
+        });
     }
 });
 
@@ -202,7 +179,14 @@ async function resetChat() {
     // Clear backend history
     if (sessionId) {
         try {
-            await fetch(DASHBOT_BASE_URL + '/chat/reset?session_id=' + sessionId, { method: 'POST' });
+            await fetch(DASHBOT_BASE_URL + '/chat/reset', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(sessionToken ? { 'X-Session-Token': sessionToken } : {})
+                },
+                body: JSON.stringify({ session_id: sessionId })
+            });
         } catch (_) {}
     }
     // Clear UI messages and restore welcome
@@ -505,9 +489,9 @@ function hideTyping() {
 }
 
 function setLoading(on) {
+    // Busy state just dims the (disabled) send button — no spinner. The
+    // "Checking…" typing indicator already shows the assistant is working.
     sendBtn.disabled = on;
-    sendIcon.style.display = on ? 'none' : 'block';
-    spinner.style.display  = on ? 'block' : 'none';
 }
 
 // Light formatter for streaming — only safe inline transforms, no structure detection
@@ -525,167 +509,70 @@ function formatStreaming(content) {
 
 function formatBotMessage(content) {
     if (!content) return content;
+
+    // --- Inline transformations (URLs, bold, italic) ---
     var f = content;
-
-    // =============================================
-    // 1. Pre-processing: structured parking data URLs
-    // =============================================
-    f = f.replace(
-        /(\d+)\s+free\s+spaces?\s+at\s+the\s+(ParkingSpot:\w+):?\s*(\w+)?\s+location\s+\((https:[^)]+)\)/gi,
-        function(m, spaces, spotId, name, url) {
-            return '<div class="db-info-card"><div class="parking-spot">' + spotId +
-                (name ? ' - ' + name : '') + '</div><div class="free-spaces">' + spaces +
-                ' free spaces</div><a href="' + url + '" target="_blank" class="map-link">View on Map</a></div>';
-        }
-    );
-    f = f.replace(/(https:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" class="map-link">View Location</a>');
-
-    // =============================================
-    // 2. Markdown: **bold** → <strong>
-    // =============================================
+    f = f.replace(/(https:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener" class="map-link">$1</a>');
     f = f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // italic: match single * but not ** (already handled)
+    f = f.replace(/(^|[\s(])\*(?!\*)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
 
-    // =============================================
-    // 3. Line-based content parsing (multi-pass)
-    // =============================================
-
-    // Step A: Split into lines — sentence boundaries, route transitions, bullets
+    // --- Block parsing: paragraphs, bullet lists, numbered lists ---
     var rawLines = f.split('\n');
-    var lines = [];
-    for (var ri = 0; ri < rawLines.length; ri++) {
-        var raw = rawLines[ri].trim();
-        if (!raw) continue;
-        var isList = /^\s*(-\s+|\d+\.\s+)/.test(raw);
+    var blocks = [];
+    var current = null;
 
-        if (isList) {
-            lines.push(raw);
-        } else if (/\s+-\s+\S/.test(raw) && !/^.{0,30}:/.test(raw)) {
-            // Inline bullets — split them
-            var bparts = raw.replace(/\s+(-\s+\S)/g, '\n$1').split('\n');
-            for (var bi = 0; bi < bparts.length; bi++) {
-                var bp = bparts[bi].trim();
-                if (bp) lines.push(bp);
-            }
-        } else if (raw.length > 80) {
-            // Split long prose at: sentence boundaries, ", then", "From there"
-            var expanded = raw
-                .replace(/([.!?])\s+(?=[A-Z])/g, '$1\n')
-                .replace(/,\s*then\s+/gi, ',\n')
-                .replace(/\.\s*From there,?\s*/gi, '.\nFrom there, ');
-            var parts = expanded.split('\n');
-            for (var pi = 0; pi < parts.length; pi++) {
-                var p = parts[pi].trim();
-                if (!p) continue;
-                // Further split intro lines: "To get to X, take Tram..." → intro + step
-                if (/^To\s+(?:get|reach|go|travel|head)/i.test(p) && p.length > 60) {
-                    var verbMatch = p.match(/,\s*(take|walk|board|catch|hop)\s/i);
-                    if (verbMatch) {
-                        var idx = p.indexOf(verbMatch[0]);
-                        var intro = p.substring(0, idx + 1).trim();
-                        var step = p.substring(idx + 2).trim();
-                        if (intro) lines.push(intro);
-                        if (step) lines.push(step);
-                        continue;
-                    }
-                }
-                lines.push(p);
-            }
+    function flush() {
+        if (current && current.lines.length) blocks.push(current);
+        current = null;
+    }
+
+    for (var i = 0; i < rawLines.length; i++) {
+        var line = rawLines[i].trim();
+        if (!line) { flush(); continue; }
+
+        var mBullet = /^[-•]\s+(.*)$/.exec(line);
+        var mNum = /^\d+\.\s+(.*)$/.exec(line);
+
+        if (mBullet) {
+            if (!current || current.type !== 'ul') { flush(); current = { type: 'ul', lines: [] }; }
+            current.lines.push(mBullet[1]);
+        } else if (mNum) {
+            if (!current || current.type !== 'ol') { flush(); current = { type: 'ol', lines: [] }; }
+            current.lines.push(mNum[1]);
         } else {
-            lines.push(raw);
+            if (!current || current.type !== 'p') { flush(); current = { type: 'p', lines: [] }; }
+            current.lines.push(line);
         }
     }
+    flush();
 
-    // Step B: classify each line
-    var routeVerbs = /^(take\s|walk\s|transfer\s|ride\s|board\s|catch\s|hop\s|then\s+(?:take|walk|transfer|ride|board)|from there)/i;
-    var lineTypes = [];
-    for (var li = 0; li < lines.length; li++) {
-        var line = lines[li].trim();
-        if (!line) continue;
-        if (/^-\s+/.test(line)) {
-            lineTypes.push({ type: 'bullet', text: line.replace(/^-\s+/, '') });
-        } else if (/^\d+\.\s+/.test(line)) {
-            lineTypes.push({ type: 'numbered', text: line.replace(/^\d+\.\s+/, '') });
-        } else if (/:\s*$/.test(line) && line.length < 80) {
-            lineTypes.push({ type: 'header-candidate', text: line });
-        } else if (routeVerbs.test(line)) {
-            // Capitalize first letter for display
-            var display = line.charAt(0).toUpperCase() + line.slice(1);
-            lineTypes.push({ type: 'route-step', text: display });
-        } else {
-            lineTypes.push({ type: 'text', text: line });
-        }
-    }
-
-    // Step C: promote header candidates that precede list items or are short labels
-    for (var li = 0; li < lineTypes.length; li++) {
-        if (lineTypes[li].type === 'header-candidate') {
-            var next = li + 1 < lineTypes.length ? lineTypes[li + 1] : null;
-            var followedByList = next && (next.type === 'bullet' || next.type === 'numbered' || next.type === 'route-step');
-            var isShortLabel = lineTypes[li].text.length < 50;
-            if (followedByList || isShortLabel) {
-                lineTypes[li].type = 'header';
-            } else {
-                lineTypes[li].type = 'text';
-            }
-        }
-    }
-
-    // Step D: render HTML
-    var body = '';
-    var stepCounter = 0;
-    var inSteps = false;
-
-    for (var li = 0; li < lineTypes.length; li++) {
-        var item = lineTypes[li];
-
-        if (item.type === 'header') {
-            if (inSteps) { body += '</div>'; inSteps = false; }
-            stepCounter = 0;
-            body += '<div class="db-section-header">' + item.text + '</div>';
-        } else if (item.type === 'bullet' || item.type === 'numbered' || item.type === 'route-step') {
-            if (!inSteps) { body += '<div class="db-steps-container">'; inSteps = true; }
-            stepCounter++;
-            body += '<div class="db-step"><span class="db-step-num">' + stepCounter + '</span><span class="db-step-text">' + item.text + '</span></div>';
-        } else {
-            if (inSteps) { body += '</div>'; inSteps = false; stepCounter = 0; }
-            body += '<p class="db-para">' + item.text + '</p>';
-        }
-    }
-    if (inSteps) body += '</div>';
-
-    // =============================================
-    // 5. Inline highlights (applied to everything)
-    // =============================================
-    function applyHighlights(text) {
-        // Times
-        text = text.replace(/\b(\d+)\s*(minutes?|min|hours?|hrs?)\b/gi, '<span class="db-time">$1 $2</span>');
-        // Distances
-        text = text.replace(/\b(\d+\.?\d*)\s*(meters?|km|kilometres?|kilometers?)\b/gi, '<span class="db-distance">$1 $2</span>');
-        // Parking spots
-        text = text.replace(/\b(\d+)\s+(free\s+)?spots?\b/gi, '<span class="db-parking-highlight">$&</span>');
-        text = text.replace(/\bparking\s+available\b/gi, '<span class="db-parking-highlight">parking available</span>');
-        // Temperatures
-        text = text.replace(/\b(-?\d+\.?\d*)\s*°?\s*(°C|°F|degrees?\s*(?:C|F|Celsius|Fahrenheit)?)\b/gi, '<span class="db-temp">$1 $2</span>');
-        // Air quality
-        text = text.replace(/\b(\d+)\s+(air\s+quality\s+sensors?)\b/gi, '<span class="db-air">$1 $2</span>');
-        text = text.replace(/\b(PM2\.?5|PM10|NO2|O3|air\s+quality)\b/gi, '<span class="db-air">$&</span>');
-        // Sensor counts
-        text = text.replace(/\b(\d+)\s+((?:weather|parking)\s+sensors?|sensors?)\b/gi, '<span class="db-count">$1 $2</span>');
-        // Total travel time
-        text = text.replace(/(Total\s+(?:travel\s+)?time\s*(?:is|:)?\s*(?:around|about)?\s*)/gi, '<span class="db-total-label">$1</span>');
-        // "Alternatively"
-        text = text.replace(/\b(Alternatively,?\s*)/gi, '<span class="db-alt-label">$1</span>');
-        // Follow-up questions
-        text = text.replace(/(What would you like.*?\?)/gi, '<span class="db-follow-up">$1</span>');
+    // --- Inline highlights for times, distances, temperatures ---
+    function highlight(text) {
+        text = text.replace(/\b(\d+\.?\d*)\s*(minutes?|min|hours?|hrs?)\b/gi, '<span class="db-pill db-pill-time">$1 $2</span>');
+        text = text.replace(/\b(\d+\.?\d*)\s*(meters?|m|km|kilometres?|kilometers?)\b(?!\w)/gi, '<span class="db-pill db-pill-dist">$1 $2</span>');
+        text = text.replace(/\b(-?\d+\.?\d*)\s*°\s*(C|F)\b/gi, '<span class="db-pill db-pill-temp">$1°$2</span>');
         return text;
     }
 
-    body = applyHighlights(body);
+    // --- Render ---
+    var html = '';
+    for (var b = 0; b < blocks.length; b++) {
+        var blk = blocks[b];
+        if (blk.type === 'ul') {
+            html += '<ul class="db-list">';
+            for (var j = 0; j < blk.lines.length; j++) html += '<li>' + highlight(blk.lines[j]) + '</li>';
+            html += '</ul>';
+        } else if (blk.type === 'ol') {
+            html += '<ol class="db-list">';
+            for (var j = 0; j < blk.lines.length; j++) html += '<li>' + highlight(blk.lines[j]) + '</li>';
+            html += '</ol>';
+        } else {
+            html += '<p class="db-para">' + blk.lines.map(highlight).join(' ') + '</p>';
+        }
+    }
 
-    // =============================================
-    // 5. Return assembled HTML
-    // =============================================
-    return body || content;
+    return html || content;
 }
 
 function now() {
@@ -709,7 +596,7 @@ function createSpeakButton(text) {
 
 function addMessage(content, isUser) {
     const div = document.createElement('div');
-    div.className = 'dashbot-msg ' + (isUser ? 'user' : 'bot');
+    div.className = 'dashbot-msg ' + (isUser ? 'user' : 'bot with-avatar');
 
     const bubble = document.createElement('div');
     bubble.className = 'dashbot-bubble';
@@ -729,6 +616,11 @@ function addMessage(content, isUser) {
         bubble.appendChild(time);
     }
 
+    if (!isUser) {
+        var botAvatar = document.createElement('div');
+        botAvatar.className = 'db-bot-avatar';
+        div.appendChild(botAvatar);
+    }
     div.appendChild(bubble);
     messages.appendChild(div);
 
@@ -741,22 +633,320 @@ function addMessage(content, isUser) {
 
 function addStreamingMessage() {
     const div = document.createElement('div');
-    div.className = 'dashbot-msg bot';
+    div.className = 'dashbot-msg bot with-avatar';
+
+    const botAvatar = document.createElement('div');
+    botAvatar.className = 'db-bot-avatar';
 
     const bubble = document.createElement('div');
     bubble.className = 'dashbot-bubble';
+
+    const textContainer = document.createElement('div');
+    textContainer.className = 'db-bubble-text';
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'db-cards';
+
+    // Text first, cards below — cards are appended after response finishes.
+    bubble.appendChild(textContainer);
+    bubble.appendChild(cardsContainer);
 
     const time = document.createElement('div');
     time.className = 'dashbot-msg-time';
     time.textContent = now();
 
+    div.appendChild(botAvatar);
     div.appendChild(bubble);
     messages.appendChild(div);
 
     const w = document.getElementById('dashbotWelcome');
     if (w) w.remove();
 
-    return { bubble, time };
+    // Return textContainer as `bubble` so existing innerHTML assignments target the
+    // text area only — the cards container above them is preserved.
+    // `outerBubble` exposes the outer .dashbot-bubble for class toggles (e.g. is-streaming).
+    return { bubble: textContainer, time, cardsContainer, outerBubble: bubble };
+}
+
+// ---- Info card rendering ----
+function dbEscape(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function dbFmtDist(m) {
+    if (m == null) return '';
+    if (m < 1000) return Math.round(m) + ' m';
+    return (m / 1000).toFixed(1) + ' km';
+}
+
+function dbFmtDur(s) {
+    if (s == null) return '';
+    if (s < 60) return Math.round(s) + ' s';
+    const min = Math.round(s / 60);
+    if (min < 60) return min + ' min';
+    const h = Math.floor(min / 60);
+    const mm = min % 60;
+    return h + 'h ' + (mm ? mm + 'm' : '');
+}
+
+function renderTransitCard(card) {
+    const segments = card.segments || [];
+    const transfers = card.total_transfers || 0;
+
+    // Metric strip
+    const metrics = [];
+    metrics.push('<span class="db-metric"><span class="db-metric-val">' + (card.total_stops || 0) + '</span><span class="db-metric-unit">stops</span></span>');
+    if (transfers > 0) {
+        metrics.push('<span class="db-metric db-metric-warn"><span class="db-metric-val">' + transfers + '</span><span class="db-metric-unit">transfer' + (transfers > 1 ? 's' : '') + '</span></span>');
+    } else {
+        metrics.push('<span class="db-metric db-metric-ok"><span class="db-metric-val">Direct</span></span>');
+    }
+    if (card.origin_walk_m) {
+        metrics.push('<span class="db-metric"><span class="db-metric-val">' + dbFmtDist(card.origin_walk_m) + '</span><span class="db-metric-unit">walk start</span></span>');
+    }
+    if (card.destination_walk_m) {
+        metrics.push('<span class="db-metric"><span class="db-metric-val">' + dbFmtDist(card.destination_walk_m) + '</span><span class="db-metric-unit">walk end</span></span>');
+    }
+
+    // Timeline
+    const rows = [];
+    // Origin
+    const originName = (segments[0] && segments[0].from) || card.origin_stop || card.origin || '';
+    rows.push(
+        '<div class="db-tl-item db-tl-start">' +
+            '<div class="db-tl-marker"><div class="db-tl-dot"></div></div>' +
+            '<div class="db-tl-body">' +
+                '<div class="db-tl-name">' + dbEscape(originName) + '</div>' +
+                '<div class="db-tl-sub">Start</div>' +
+            '</div>' +
+        '</div>'
+    );
+
+    segments.forEach(function(s, i) {
+        const isBus = /bus/i.test(s.line || '');
+        const icon = isBus ? '\uD83D\uDE8C' : '\uD83D\uDE8B';
+        const badgeClass = isBus ? 'db-tl-badge db-line-bus' : 'db-tl-badge';
+        const intermediate = (s.stops || []).slice(1, -1); // exclude from/to
+        const stopsList = intermediate.length
+            ? '<details class="db-tl-stops">' +
+                '<summary>' + intermediate.length + ' stop' + (intermediate.length > 1 ? 's' : '') + ' along the way</summary>' +
+                '<ol>' + intermediate.map(function(st) { return '<li>' + dbEscape(st) + '</li>'; }).join('') + '</ol>' +
+              '</details>'
+            : '';
+        rows.push(
+            '<div class="db-tl-item db-tl-segment">' +
+                '<div class="db-tl-marker"><div class="db-tl-connector"></div></div>' +
+                '<div class="db-tl-body">' +
+                    '<span class="' + badgeClass + '">' + icon + ' ' + dbEscape(s.line || '') + '</span>' +
+                    (s.direction ? '<div class="db-tl-dir"><span class="db-tl-dir-arrow">\u2192</span>' + dbEscape(s.direction) + (s.num_stops ? ' \u00B7 ride ' + s.num_stops + ' stops' : '') + '</div>' : '') +
+                    stopsList +
+                '</div>' +
+            '</div>'
+        );
+
+        // Transfer marker between segments (intermediate stop is also the next from)
+        if (i < segments.length - 1) {
+            rows.push(
+                '<div class="db-tl-item db-tl-transfer">' +
+                    '<div class="db-tl-marker"><div class="db-tl-dot"></div></div>' +
+                    '<div class="db-tl-body">' +
+                        '<div class="db-tl-name">' + dbEscape(s.to || '') + '</div>' +
+                        '<div class="db-tl-sub">Transfer</div>' +
+                    '</div>' +
+                '</div>'
+            );
+        }
+    });
+
+    // Destination
+    const destName = (segments.length && segments[segments.length - 1].to) || card.destination_stop || card.destination || '';
+    rows.push(
+        '<div class="db-tl-item db-tl-end">' +
+            '<div class="db-tl-marker"><div class="db-tl-dot db-tl-dot-end"></div></div>' +
+            '<div class="db-tl-body">' +
+                '<div class="db-tl-name">' + dbEscape(destName) + '</div>' +
+                '<div class="db-tl-sub">Arrive</div>' +
+            '</div>' +
+        '</div>'
+    );
+
+    return '<div class="db-card db-card-transit">' +
+        '<div class="db-card-head">' +
+            '<div class="db-card-title">' +
+                '<span class="db-card-icon">\uD83D\uDE8F</span>' +
+                '<span>' + dbEscape(card.origin || '') + ' \u2192 ' + dbEscape(card.destination || '') + '</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="db-metrics">' + metrics.join('') + '</div>' +
+        '<div class="db-timeline">' + rows.join('') + '</div>' +
+    '</div>';
+}
+
+function renderRouteCard(card) {
+    const icons = { walking: '\uD83D\uDEB6', cycling: '\uD83D\uDEB4', driving: '\uD83D\uDE97' };
+    const modeLabel = (card.mode || '').charAt(0).toUpperCase() + (card.mode || '').slice(1);
+    const dirs = (card.directions || []).slice(0, 8).map(function(d) {
+        const text = typeof d === 'string' ? d : (d.instruction || d.text || d.message || '');
+        return text ? '<li>' + dbEscape(text) + '</li>' : '';
+    }).filter(Boolean).join('');
+
+    const metrics = [];
+    if (card.distance_m != null) {
+        metrics.push('<span class="db-metric"><span class="db-metric-val">' + dbFmtDist(card.distance_m) + '</span></span>');
+    }
+    if (card.duration_s != null) {
+        metrics.push('<span class="db-metric"><span class="db-metric-val">' + dbFmtDur(card.duration_s) + '</span></span>');
+    }
+    if (card.traffic_delay_s) {
+        metrics.push('<span class="db-metric db-metric-warn"><span class="db-metric-val">+' + dbFmtDur(card.traffic_delay_s) + '</span><span class="db-metric-unit">traffic</span></span>');
+    }
+
+    return '<div class="db-card db-card-route db-route-' + dbEscape(card.mode || '') + '">' +
+        '<div class="db-card-head">' +
+            '<div class="db-card-title">' +
+                '<span class="db-card-icon">' + (icons[card.mode] || '\uD83D\uDDFA\uFE0F') + '</span>' +
+                '<span>' + modeLabel + ' route</span>' +
+            '</div>' +
+        '</div>' +
+        (metrics.length ? '<div class="db-metrics">' + metrics.join('') + '</div>' : '') +
+        (dirs ? '<details class="db-route-directions"><summary>Turn-by-turn directions</summary><ol>' + dirs + '</ol></details>' : '') +
+    '</div>';
+}
+
+// ---- Map overlay ----
+// Draws on the HOST page's Leaflet map (the IMIQ dashboard's `map`). No-ops
+// gracefully when the page has no Leaflet map (e.g. Dashbot's standalone chat
+// page), so the widget stays self-contained and infra-free.
+let dashbotMapOverlay = null;   // place markers
+let routePolyline = null;       // the single route line currently on the map
+let defaultRouteDrawn = false;  // has the default (walking) route been auto-shown this answer?
+
+function getLeafletMap() {
+    // The dashboard declares a page-global `const map` (classic script) + global `L`.
+    try { if (typeof map !== 'undefined' && window.L && map instanceof L.Map) return map; } catch (e) {}
+    try { if (window.map && window.L && window.map instanceof L.Map) return window.map; } catch (e) {}
+    return null;
+}
+
+function getMapOverlay(m) {
+    if (!dashbotMapOverlay) { dashbotMapOverlay = L.layerGroup().addTo(m); }
+    return dashbotMapOverlay;
+}
+
+function clearMapOverlay() {
+    try { if (dashbotMapOverlay) dashbotMapOverlay.clearLayers(); } catch (e) {}
+    const m = getLeafletMap();
+    try { if (m && routePolyline) m.removeLayer(routePolyline); } catch (e) {}
+    routePolyline = null;
+    defaultRouteDrawn = false;
+}
+
+const DB_ROUTE_COLORS = { walking: '#2e7d32', cycling: '#1565c0', driving: '#7b1fa2' };
+
+function drawOnMap(card) {
+    // Place pins only — routes are handled by drawRoute/selectRoute so the map
+    // never shows more than ONE route line at a time.
+    const m = getLeafletMap();
+    if (!m || !window.L || !card) return;
+    if (card.type !== 'place' || card.lat == null || card.lon == null) return;
+    try {
+        const overlay = getMapOverlay(m);
+        const marker = L.marker([card.lat, card.lon]);
+        if (card.name) marker.bindPopup(String(card.name));
+        overlay.addLayer(marker);
+        // Single pin → center + open popup; multiple → frame them all.
+        if (overlay.getLayers().length <= 1) {
+            m.setView([card.lat, card.lon], Math.max(m.getZoom(), 16));
+            marker.openPopup();
+        } else {
+            try { m.fitBounds(overlay.getBounds(), { padding: [40, 40], maxZoom: 17 }); } catch (e) {}
+        }
+    } catch (e) {
+        console.warn('Dashbot: map draw failed', e);
+    }
+}
+
+// Always exactly ONE route line. Drawing a mode replaces the previous line.
+function drawRoute(mode, coords) {
+    const m = getLeafletMap();
+    if (!m || !window.L || !Array.isArray(coords) || coords.length < 2) return;
+    try { if (routePolyline) m.removeLayer(routePolyline); } catch (e) {}
+    routePolyline = L.polyline(coords, {
+        color: DB_ROUTE_COLORS[mode] || '#7a003f', weight: 5, opacity: 0.9,
+    }).addTo(m);
+    try {
+        const layers = [routePolyline].concat(dashbotMapOverlay ? dashbotMapOverlay.getLayers() : []);
+        m.fitBounds(L.featureGroup(layers).getBounds(), { padding: [40, 40], maxZoom: 17 });
+    } catch (e) {}
+}
+
+// Draw the chosen mode's line and highlight its card among its siblings.
+function selectRoute(el, mode, coords) {
+    drawRoute(mode, coords);
+    try {
+        const group = el.closest('.db-cards') || el.parentElement;
+        if (group) {
+            group.querySelectorAll('.db-card-route').forEach(function (c) {
+                if (c === el) {
+                    c.style.outline = '2px solid ' + (DB_ROUTE_COLORS[mode] || '#7a003f');
+                    c.style.outlineOffset = '1px';
+                } else {
+                    c.style.outline = 'none';
+                }
+            });
+        }
+    } catch (e) {}
+}
+
+function renderPlaceCard(card) {
+    return '<div class="db-card db-card-place">' +
+        '<div class="db-card-head">' +
+            '<div class="db-card-title">' +
+                '<span class="db-card-icon">📍</span>' +
+                '<span>' + dbEscape(card.name || 'Location') + '</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="db-tl-sub">Shown on the map</div>' +
+    '</div>';
+}
+
+function renderCard(container, card) {
+    if (!container || !card || !card.type) return;
+    // Draw the geo overlay on the host Leaflet map (dashboard) when present.
+    drawOnMap(card);
+    let html = '';
+    switch (card.type) {
+        case 'transit_route': html = renderTransitCard(card); break;
+        case 'route': html = renderRouteCard(card); break;
+        case 'place': html = renderPlaceCard(card); break;
+        default: return;
+    }
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const el = wrap.firstElementChild;
+    if (el) {
+        el.classList.add('db-card-enter');
+        const isRoute = (card.type === 'route' && Array.isArray(card.geometry) && card.geometry.length > 1);
+        if (isRoute) {
+            el.setAttribute('data-mode', card.mode);
+            el.style.cursor = 'pointer';
+            el.title = 'Show this route on the map';
+            el.addEventListener('click', function () { selectRoute(el, card.mode, card.geometry); });
+        }
+        container.appendChild(el);
+        // Show ONE route by default (walking — route cards arrive walking-first).
+        if (isRoute && !defaultRouteDrawn) {
+            selectRoute(el, card.mode, card.geometry);
+            defaultRouteDrawn = true;
+        }
+        requestAnimationFrame(function() { el.classList.add('db-card-shown'); });
+    }
 }
 
 // ---- Send ----
@@ -772,6 +962,7 @@ async function sendMessage() {
     if (!isChatOpen) openChat();
 
     addMessage(msg, true);
+    clearMapOverlay();   // wipe the previous answer's pins/routes from the map
     input.value = '';
     setLoading(true);
     showTyping();
@@ -779,7 +970,10 @@ async function sendMessage() {
     try {
         const res = await fetch(DASHBOT_BASE_URL + '/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(sessionToken ? { 'X-Session-Token': sessionToken } : {})
+            },
             body: JSON.stringify({
                 message: msg,
                 session_id: sessionId || 'default',
@@ -791,11 +985,53 @@ async function sendMessage() {
 
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
+        // JSON (non-streaming) fast path for the LangGraph backend
+        const ctype = res.headers.get('content-type') || '';
+        if (ctype.includes('application/json')) {
+            const data = await res.json();
+            hideTyping();
+            const s = addStreamingMessage();
+            s.outerBubble.classList.add('is-streaming');
+            const fullText = data.text || 'Sorry, I could not generate a response.';
+            s.bubble.innerHTML = formatBotMessage(fullText);
+            const footer = document.createElement('div');
+            footer.className = 'dashbot-msg-footer';
+            footer.appendChild(s.time);
+            footer.appendChild(createSpeakButton(fullText));
+            s.bubble.appendChild(footer);
+            s.outerBubble.classList.remove('is-streaming');
+            scrollToBottom();
+            setLoading(false);
+            return;
+        }
+
         var bubble = null;
+        var outerBubble = null;
         var time = null;
+        var cardsContainer = null;
         let fullText = '';
         var firstToken = true;
-        var ttsSentIndex = 0; 
+        var ttsSentIndex = 0;
+        var pendingCards = [];
+
+        function ensureBubble() {
+            if (!firstToken) return;
+            hideTyping();
+            var s = addStreamingMessage();
+            bubble = s.bubble;
+            outerBubble = s.outerBubble;
+            time = s.time;
+            cardsContainer = s.cardsContainer;
+            outerBubble.classList.add('is-streaming');
+            firstToken = false;
+        }
+
+        function flushCards() {
+            for (var i = 0; i < pendingCards.length; i++) {
+                renderCard(cardsContainer, pendingCards[i]);
+            }
+            pendingCards.length = 0;
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -815,14 +1051,11 @@ async function sendMessage() {
                 if (!json) continue;
                 try {
                     const ev = JSON.parse(json);
-                    if (ev.type === 'token') {
-                        if (firstToken) {
-                            hideTyping();
-                            var streaming = addStreamingMessage();
-                            bubble = streaming.bubble;
-                            time = streaming.time;
-                            firstToken = false;
-                        }
+                    if (ev.type === 'card') {
+                        // Buffer until text finishes — cards render below the message
+                        pendingCards.push(ev.card);
+                    } else if (ev.type === 'token') {
+                        ensureBubble();
                         fullText += ev.content;
                         bubble.innerHTML = formatStreaming(fullText);
                         scrollToBottom();
@@ -837,12 +1070,7 @@ async function sendMessage() {
                             }
                         }
                     } else if (ev.type === 'done') {
-                        if (firstToken) {
-                            hideTyping();
-                            var s = addStreamingMessage();
-                            bubble = s.bubble; time = s.time;
-                            firstToken = false;
-                        }
+                        ensureBubble();
                         if (bubble) {
                             bubble.innerHTML = formatBotMessage(fullText);
                             var footer = document.createElement('div');
@@ -851,6 +1079,11 @@ async function sendMessage() {
                             footer.appendChild(createSpeakButton(fullText));
                             bubble.appendChild(footer);
                         }
+                        // Now reveal any cards below the finalized text
+                        flushCards();
+                        if (outerBubble) {
+                            outerBubble.classList.remove('is-streaming');
+                        }
                         scrollToBottom();
                         // Send remaining unsent text to TTS
                         if (ttsEnabled && fullText) {
@@ -858,17 +1091,13 @@ async function sendMessage() {
                             if (remaining) enqueueTtsChunk(remaining);
                         }
                     } else if (ev.type === 'error') {
-                        if (firstToken) {
-                            hideTyping();
-                            var se = addStreamingMessage();
-                            bubble = se.bubble; time = se.time;
-                            firstToken = false;
-                        }
+                        ensureBubble();
                         fullText += ' [Error: ' + ev.content + ']';
                         if (bubble) {
                             bubble.innerHTML = formatBotMessage(fullText);
                             bubble.appendChild(time);
                         }
+                        if (outerBubble) outerBubble.classList.remove('is-streaming');
                         scrollToBottom();
                     }
                 } catch (_) {}
@@ -880,9 +1109,16 @@ async function sendMessage() {
             if (!bubble) {
                 var sf = addStreamingMessage();
                 bubble = sf.bubble; time = sf.time;
+                cardsContainer = sf.cardsContainer;
+                outerBubble = sf.outerBubble;
             }
             bubble.textContent = 'Sorry, I could not generate a response.';
             bubble.appendChild(time);
+            if (outerBubble) outerBubble.classList.remove('is-streaming');
+        }
+        // Safety net: if `done` never fired but we have pending cards, reveal them.
+        if (pendingCards.length && cardsContainer) {
+            flushCards();
         }
 
         setLoading(false);

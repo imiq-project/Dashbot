@@ -1,7 +1,7 @@
 """
 FastAPI REST server for the Magdeburg Campus Assistant.
-Provides HTTP endpoints for chat, text-to-speech, route map building, and dialogue management.
-Handles streaming responses and integrates with the multi-agent orchestrator system.
+Provides HTTP endpoints for chat and session management.
+All queries are processed through the LangGraph multi-agent pipeline.
 """
 
 import sys
@@ -9,880 +9,360 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-from io import BytesIO
-import os
-import json
 import asyncio
+
+# L11: prefer uvloop on platforms that support it (Linux / macOS).
+# Installed as CMD on Docker and ignored silently on Windows (no wheel).
+try:
+    import uvloop  # type: ignore
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except ImportError:
+    pass
+
+from contextlib import asynccontextmanager
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from typing import Optional, Dict
+from collections import defaultdict, deque
+import json
+import logging
+import os
 import re
+import secrets
 import threading
 import time
-from elevenlabs.client import ElevenLabs
-import APP
-from APP import (
-    chat_optimized,
-    SmartToolRouter,
-    ParallelToolExecutor,
-    KnowledgeBase,
-    TOOLS,
-    KNOWLEDGE_DIR,
-    neo4j_graph,
-    fiware_client,
-    ors_client,
-    TOOL_DESCRIPTIONS,
-    execute_tool_call
-)
 
-from agents.dialogue_manager import (
-    DialogueManager,
-    DialogueState,
-    DialoguePhase,
-    ResponseType
-)
-from services.coordinate_resolver import get_coordinates, search_buildings, initialize_resolver as init_coord_resolver
+from APP import get_app
+from models import Coordinates
+from config import REDIS_URL, AGENT_TIMEOUT
+from clients.ors_client import decode_geometry
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "cgSgspJ2msm6clMCkdW9")
-EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("magdeburg_api")
 
-print("🚀 Starting Magdeburg Assistant API v4.5 (Proactive Conversational Flow)...")
+logger.info("Starting Magdeburg Assistant API v6.0 (LangGraph single-agent on MCP tools)...")
 
-print("🔊 Initializing ElevenLabs TTS...")
-elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+# Initialize all dependencies (clients + LangGraph single-agent pipeline).
+# The MCP tool servers + agent are built in the lifespan (MCP is the only tool path).
+ctx = get_app()
 
-print("🔧 Setting up tool router...")
-tool_router = SmartToolRouter(
-    tools=TOOLS,
-    model_name=EMBEDDING_MODEL,
-    tool_descriptions=TOOL_DESCRIPTIONS
-)
-
-print("📚 Loading knowledge base...")
-knowledge_base = KnowledgeBase(
-    KNOWLEDGE_DIR,
-    tool_router.embedder,
-    model_name=EMBEDDING_MODEL
-)
-
-import APP
-APP.knowledge_base = knowledge_base
-
-print("⚡ Setting up parallel executor...")
-parallel_executor = ParallelToolExecutor(max_workers=5)
-
-print("🧠 Initializing semantic coordinate resolver...")
-init_coord_resolver(neo4j_graph, ors_client)
-
-conversations: Dict[str, List[Dict]] = {}
-_conversations_lock = threading.Lock()
-
-dialogue_states: Dict[str, DialogueState] = {}
-_dialogue_states_lock = threading.Lock()
-
-_dialogue_manager: Optional[DialogueManager] = None
-_dialogue_manager_lock = threading.Lock()
-
-
-def get_dialogue_manager():
-    global _dialogue_manager
-    with _dialogue_manager_lock:
-        if _dialogue_manager is None:
-            try:
-                from orchestrator import create_orchestrator
-                from openai import OpenAI
-                import config
-
-                llm_client = OpenAI(
-                    api_key=config.OPENAI_API_KEY,
-                    base_url=config.OPENAI_BASE_URL
-                )
-
-                orchestrator = create_orchestrator(
-                    llm_client=llm_client,
-                    neo4j_graph=neo4j_graph,
-                    fiware_client=fiware_client,
-                    ors_client=ors_client,
-                    verbose=False
-                )
-
-                _dialogue_manager = DialogueManager(orchestrator, verbose=True)
-                print("✅ Dialogue manager initialized")
-            except Exception as e:
-                print(f"⚠️ Could not initialize dialogue manager: {e}")
-                _dialogue_manager = None
-
-    return _dialogue_manager
-
-
-def get_dialogue_state(session_id: str) -> DialogueState:
-    with _dialogue_states_lock:
-        if session_id not in dialogue_states:
-            dialogue_states[session_id] = DialogueState()
-        return dialogue_states[session_id]
-
-
-def reset_dialogue_state(session_id: str) -> None:
-    with _dialogue_states_lock:
-        if session_id in dialogue_states:
-            dialogue_states[session_id].reset()
-        else:
-            dialogue_states[session_id] = DialogueState()
-
-captured_tool_params: Dict[str, Dict[str, Any]] = {}
-_captured_tool_lock = threading.Lock()
-
-def capture_tool_call(session_id: str, tool_name: str, arguments: dict):
-    with _captured_tool_lock:
-        if session_id not in captured_tool_params:
-            captured_tool_params[session_id] = {}
-        captured_tool_params[session_id][tool_name] = arguments
-    print(f"   📦 Captured {tool_name}: {arguments}")
-
-def get_captured_tools(session_id: str) -> Dict[str, Any]:
-    with _captured_tool_lock:
-        return captured_tool_params.get(session_id, {})
-
-def clear_captured_tools(session_id: str):
-    with _captured_tool_lock:
-        if session_id in captured_tool_params:
-            captured_tool_params[session_id] = {}
-
-_original_execute_tool_call = execute_tool_call
-_current_session_id = "default"
-
-def wrapped_execute_tool_call(tool_name: str, arguments: dict) -> str:
-    global _current_session_id
-
-    if tool_name in ['get_mobility', 'get_building', 'get_transit_info', 'get_landmark_info', 'query_campus_sensors', 'get_weather_forecast']:
-        capture_tool_call(_current_session_id, tool_name, arguments)
-
-    return _original_execute_tool_call(tool_name, arguments)
-
-APP.execute_tool_call = wrapped_execute_tool_call
-
-print("✅ API Ready!")
-
-app = FastAPI(
-    title="Magdeburg Assistant API",
-    description="AI Assistant for OVGU Campus and Magdeburg City - Proactive Conversational Flow",
-    version="4.5.0"
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-SESSION_TIMEOUT_SECONDS = 1800  # 30 minutes of inactivity → auto-cleanup
+# ---------------------------------------------------------------------------
+# Session state
+# ---------------------------------------------------------------------------
+SESSION_TIMEOUT_SECONDS = 1800  # 30 minutes
 _session_last_active: Dict[str, float] = {}
+_session_histories: Dict[str, list] = {}
+_session_tokens: Dict[str, str] = {}
 _session_active_lock = threading.Lock()
 
 
 def _touch_session(session_id: str) -> None:
-    """Update last-active timestamp for a session."""
     with _session_active_lock:
         _session_last_active[session_id] = time.time()
 
 
 def _auto_cleanup_sessions() -> None:
-    """Remove sessions inactive for longer than SESSION_TIMEOUT_SECONDS."""
     now = time.time()
     with _session_active_lock:
         expired = [
             sid for sid, last in _session_last_active.items()
             if now - last > SESSION_TIMEOUT_SECONDS
         ]
-    for sid in expired:
-        _destroy_session(sid)
-        with _session_active_lock:
+        for sid in expired:
             _session_last_active.pop(sid, None)
+            _session_histories.pop(sid, None)
+            _session_tokens.pop(sid, None)
     if expired:
-        print(f"🧹 Auto-cleaned {len(expired)} expired session(s)")
+        logger.info(f"Auto-cleaned {len(expired)} expired session(s)")
+
+
+def verify_session_token(
+    session_id: str,
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token"),
+) -> str:
+    """FastAPI dependency that validates a session's auth token.
+
+    Returns 404 if the session_id is unknown, 401 if the token is missing
+    or does not match. Uses secrets.compare_digest for constant-time compare.
+    """
+    with _session_active_lock:
+        expected = _session_tokens.get(session_id)
+    if expected is None:
+        raise HTTPException(status_code=404, detail="unknown session_id")
+    if not x_session_token or not secrets.compare_digest(expected, x_session_token):
+        raise HTTPException(status_code=401, detail="invalid or missing session token")
+    return session_id
 
 
 async def _cleanup_loop():
-    """Background loop that runs auto-cleanup every 5 minutes."""
     while True:
         await asyncio.sleep(300)
-        _auto_cleanup_sessions()
+        try:
+            _auto_cleanup_sessions()
+        except Exception:
+            logger.exception("cleanup loop iteration failed")
 
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(_cleanup_loop())
+def _get_conversation_history(session_id: str) -> list:
+    with _session_active_lock:
+        return list(_session_histories.get(session_id, []))
 
 
+MAX_HISTORY_MESSAGES = 80
+MAX_HISTORY_BYTES = 60_000  # ~60 KB budget per session, trimmed from oldest
+
+
+def _add_to_history(session_id: str, query: str, response: str) -> None:
+    # H29: redact PII before persisting so it cannot leak into later turns
+    # replayed as LLM context, or into checkpointer logs.
+    safe_query = _redact_pii(query)
+    safe_response = _redact_pii(response)
+    with _session_active_lock:
+        if session_id not in _session_histories:
+            _session_histories[session_id] = []
+        history = _session_histories[session_id]
+        history.append({"role": "user", "content": safe_query})
+        history.append({"role": "assistant", "content": safe_response})
+        # Cap by message count first, then by total byte size so long tool
+        # payloads can't balloon memory even under the count cap.
+        if len(history) > MAX_HISTORY_MESSAGES:
+            del history[:len(history) - MAX_HISTORY_MESSAGES]
+        total = sum(len(m["content"]) for m in history)
+        while total > MAX_HISTORY_BYTES and len(history) > 2:
+            total -= len(history.pop(0)["content"])
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting — Redis-backed when REDIS_URL is set, otherwise per-worker
+# in-memory token-bucket as a fallback.
+# ---------------------------------------------------------------------------
+RATE_LIMIT_MAX = 20       # requests per window
+RATE_LIMIT_WINDOW = 60.0  # seconds
+_rate_limits: Dict[str, deque] = defaultdict(deque)
+_rate_limit_lock = threading.Lock()
+
+
+def _check_rate_limit_inmemory(client_id: str) -> bool:
+    now = time.time()
+    with _rate_limit_lock:
+        dq = _rate_limits[client_id]
+        while dq and now - dq[0] > RATE_LIMIT_WINDOW:
+            dq.popleft()
+        if len(dq) >= RATE_LIMIT_MAX:
+            return False
+        dq.append(now)
+        return True
+
+
+class RateLimiter:
+    """Thin abstraction over an in-memory or Redis-backed rate limiter.
+
+    The `check(client_ip)` method returns True if the request is allowed.
+    On Redis connection errors mid-request we fall back to the in-memory
+    limiter so requests never fail closed because of cache outages.
+    """
+
+    def __init__(self):
+        self._redis = None
+        self._ready = False
+        self._window = int(RATE_LIMIT_WINDOW)
+        self._max = RATE_LIMIT_MAX
+        if REDIS_URL:
+            try:
+                import redis.asyncio as aioredis  # type: ignore
+                self._redis = aioredis.Redis.from_url(REDIS_URL, socket_timeout=1.0)
+                logger.info("Rate limiter: using Redis backend (%s)", REDIS_URL)
+            except Exception as e:
+                logger.warning(
+                    "Rate limiter: Redis backend unavailable (%s); using in-memory fallback",
+                    e,
+                )
+                self._redis = None
+        if self._redis is None:
+            logger.warning(
+                "Rate limiter is per-worker only (REDIS_URL not set). "
+                "Multi-worker deployments will allow N× the configured rate."
+            )
+
+    async def check(self, client_ip: str) -> bool:
+        # Lazy-ping Redis on first call so sync __init__ stays fast.
+        if self._redis is not None and not self._ready:
+            try:
+                await self._redis.ping()
+                self._ready = True
+                logger.info("Rate limiter: Redis backend ready")
+            except Exception as e:
+                logger.warning(
+                    "Rate limiter: Redis ping failed (%s); falling back to in-memory", e
+                )
+                self._redis = None
+        if self._redis is not None:
+            try:
+                window = int(time.time() // self._window)
+                key = f"rate_limit:{client_ip}:{window}"
+                count = await self._redis.incr(key)
+                if count == 1:
+                    await self._redis.expire(key, self._window)
+                return int(count) <= self._max
+            except Exception as e:
+                logger.warning("Redis rate-limit check failed (%s); falling back", e)
+                return _check_rate_limit_inmemory(client_ip)
+        return _check_rate_limit_inmemory(client_ip)
+
+
+_rate_limiter = RateLimiter()
+
+
+# ---------------------------------------------------------------------------
+# Nearest-stop cache — avoids a Neo4j round-trip on every message when the
+# user barely moves between turns. Keyed by rounded coordinates (~111 m at
+# 3 decimal places) with a 5-minute TTL.
+# ---------------------------------------------------------------------------
+NEAREST_STOP_TTL = 300.0
+NEAREST_STOP_PRECISION = 3
+_nearest_stop_cache: Dict[tuple, tuple] = {}
+_nearest_stop_cache_lock = threading.Lock()
+
+
+logger.info("API Ready!")
+
+# ---------------------------------------------------------------------------
+# PII redaction (H29)
+# ---------------------------------------------------------------------------
+# Used on any text that may end up in logs, cached entries, or replayed
+# conversation history. Deliberately conservative regexes — prefer
+# over-masking to leaking a valid phone/email/address.
+_EMAIL_RE = re.compile(r'\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b')
+_PHONE_RE = re.compile(r'\b\+?\d[\d\s()\-]{7,}\d\b')
+# Partial street addresses: "Universitaetsplatz 2", "Hauptstrasse 15a".
+# Streetname token + 1-4 digit number + optional letter suffix.
+_STREET_RE = re.compile(
+    r'\b[A-ZÄÖÜ][A-Za-zäöüß\-]{3,}(?:strasse|straße|str\.|platz|weg|allee|ring|gasse)\s+\d{1,4}[a-zA-Z]?\b',
+    re.IGNORECASE,
+)
+
+
+def _redact_pii(text: str) -> str:
+    """Mask email, phone, and partial street addresses.
+
+    Called before logging and before storing user turns in the in-memory
+    conversation history so leaked PII cannot re-enter the LLM context on
+    subsequent turns.
+    """
+    if not text:
+        return text
+    redacted = _EMAIL_RE.sub("<email>", text)
+    redacted = _PHONE_RE.sub("<phone>", redacted)
+    redacted = _STREET_RE.sub("<address>", redacted)
+    return redacted
+
+
+# ---------------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------------
+_here = os.path.dirname(os.path.abspath(__file__))
+_static_dir = os.path.join(_here, "static")
+_templates_dir = os.path.join(_here, "templates")
+
+_cleanup_task = None
+_mcp_stack = None  # AsyncExitStack holding the persistent MCP sessions (opened in lifespan)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _cleanup_task, _mcp_stack
+    _cleanup_task = asyncio.create_task(_cleanup_loop())
+
+    # MCP is the ONLY tool path (no in-process fallback). Open persistent stdio
+    # sessions to the 4 MCP servers and build the single gpt-5.4 agent on them.
+    # If this fails, the app fails to start — by design.
+    from contextlib import AsyncExitStack
+    from graph.mcp_client import open_mcp_tools
+    from graph.graph import build_graph
+
+    from graph.agent import build_single_agent
+
+    _mcp_stack = AsyncExitStack()
+    await _mcp_stack.__aenter__()
+    tools, per_server = await open_mcp_tools(_mcp_stack)
+    # Build the agent ONCE and keep a handle on it: the /chat streaming path
+    # streams this agent directly (token-by-token), and the graph wraps the
+    # SAME agent for the non-streaming path.
+    agent, _tool_names = build_single_agent(tools)
+    ctx.single_agent = agent
+    ctx.graph_app = build_graph(
+        neo4j_graph=ctx.neo4j_graph,
+        fiware_client=ctx.fiware_client,
+        ors_client=ctx.ors_client,
+        semantic_cache=ctx.semantic_cache,
+        checkpointer=ctx.checkpointer,
+        tools=tools,
+        agent=agent,
+    )
+    logger.info(f"[MCP] single gpt-5.4 agent ready on {len(tools)} MCP tools: {per_server}")
+
+    try:
+        yield
+    finally:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+        if _mcp_stack is not None:
+            try:
+                await _mcp_stack.aclose()
+            except Exception:
+                pass
+
+
+app = FastAPI(
+    title="Magdeburg Assistant API",
+    description="AI Assistant for OVGU Campus and Magdeburg City - single gpt-5.4 LangGraph agent (optional MCP tool servers)",
+    version="6.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    # Restrict to local dev + OVGU domains. Update via env var for other environments.
+    allow_origins=["http://localhost:*", "http://127.0.0.1:*", "https://*.ovgu.de"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# L35: gzip JSON bodies and streamed SSE payloads above 1 KB. Small
+# replies (status/health) are skipped automatically by the middleware.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+if os.path.isdir(_static_dir):
+    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+
+
+# ---------------------------------------------------------------------------
+# Request / response models
+# ---------------------------------------------------------------------------
 class UserLocation(BaseModel):
-    lat: float
-    lon: float
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
 
 class ChatRequest(BaseModel):
-    message: str
-    session_id: Optional[str] = "default"
-    language: Optional[str] = "en"
-    stream: Optional[bool] = True
+    message: str = Field(..., min_length=1, max_length=2000)
+    session_id: Optional[str] = Field(None, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    language: Optional[str] = Field("en", pattern=r"^(en|de)$")
     user_location: Optional[UserLocation] = None
-    conversational: Optional[bool] = True
+    stream: bool = False
 
-class TTSRequest(BaseModel):
-    text: str
-    voice_id: Optional[str] = None
 
-
-def decode_polyline(encoded: str) -> List[List[float]]:
-    if not encoded:
-        return []
-
-    decoded = []
-    i = 0
-    lat = 0
-    lng = 0
-
-    while i < len(encoded):
-        shift = 0
-        result = 0
-        while True:
-            b = ord(encoded[i]) - 63
-            i += 1
-            result |= (b & 0x1f) << shift
-            shift += 5
-            if b < 0x20:
-                break
-        dlat = ~(result >> 1) if result & 1 else result >> 1
-        lat += dlat
-
-        shift = 0
-        result = 0
-        while True:
-            b = ord(encoded[i]) - 63
-            i += 1
-            result |= (b & 0x1f) << shift
-            shift += 5
-            if b < 0x20:
-                break
-        dlng = ~(result >> 1) if result & 1 else result >> 1
-        lng += dlng
-
-        decoded.append([lat / 1e5, lng / 1e5])
-
-    return decoded
-
-
-def get_route_geometry_from_ors(start_coords: tuple, end_coords: tuple, profile: str) -> Optional[Dict]:
-    try:
-        route = ors_client.get_route(start_coords, end_coords, profile)
-
-        if not route or not route.get("success"):
-            return None
-
-        geometry = route.get("geometry", {})
-
-        if isinstance(geometry, str):
-            coords = decode_polyline(geometry)
-        elif isinstance(geometry, dict):
-            if geometry.get("type") == "LineString":
-                coords = [[c[1], c[0]] for c in geometry.get("coordinates", [])]
-            elif "coordinates" in geometry:
-                coords = [[c[1], c[0]] for c in geometry.get("coordinates", [])]
-            else:
-                coords = []
-        else:
-            coords = []
-
-        if coords:
-            print(f"   ✅ ORS {profile}: {len(coords)} points")
-            return {
-                "coordinates": coords,
-                "distance": route.get("distance"),
-                "duration": route.get("duration"),
-            }
-
-        return None
-
-    except Exception as e:
-        print(f"   ❌ ORS error for {profile}: {e}")
-        return None
-
-
-def get_transit_segment_coords(from_stop: str, to_stop: str, line: str) -> List[List[float]]:
-    try:
-        query = """
-        MATCH path = (start:Stop)-[:NEXT_STOP*]->(end:Stop)
-        WHERE start.name CONTAINS $from_stop
-          AND end.name CONTAINS $to_stop
-          AND ALL(r IN relationships(path) WHERE r.line = $line)
-        WITH path, length(path) as pathLength
-        ORDER BY pathLength ASC
-        LIMIT 1
-        UNWIND nodes(path) as stop
-        RETURN stop.latitude as lat, stop.longitude as lng
-        """
-
-        with neo4j_graph.driver.session(database=neo4j_graph.database) as session:
-            result = session.run(query, from_stop=from_stop, to_stop=to_stop, line=line)
-            coords = []
-            for record in result:
-                if record["lat"] and record["lng"]:
-                    coords.append([record["lat"], record["lng"]])
-
-            if coords:
-                print(f"   ✅ Transit {line}: {len(coords)} stops")
-            return coords
-
-    except Exception as e:
-        print(f"   ⚠️ Transit segment error: {e}")
-        return []
-
-
-def get_transit_route_geometry(origin: str, destination: str) -> Optional[Dict]:
-    try:
-        transit_data = neo4j_graph.get_multimodal_route(origin, destination)
-
-        if not transit_data or not transit_data.get("success"):
-            return None
-
-        route = transit_data.get("route", {})
-        segments = route.get("segments", [])
-
-        transit_segments = []
-
-        for segment in segments:
-            if segment.get("type") == "transit":
-                segment_coords = get_transit_segment_coords(
-                    segment.get("from", ""),
-                    segment.get("to", ""),
-                    segment.get("line", "")
-                )
-
-                if segment_coords:
-                    line_info = neo4j_graph.get_line_info(segment.get("line", ""))
-                    line_color = "#ff6b6b"
-                    if line_info.get("success") and line_info.get("line"):
-                        line_color = line_info["line"].get("color", "#ff6b6b")
-
-                    transit_segments.append({
-                        "line": segment.get("line"),
-                        "color": line_color,
-                        "coordinates": segment_coords,
-                        "from": segment.get("from"),
-                        "to": segment.get("to"),
-                        "stops": segment.get("stops", []),
-                        "stopCount": segment.get("stop_count", len(segment.get("stops", [])))
-                    })
-
-        if not transit_segments:
-            return None
-
-        return {
-            "segments": transit_segments,
-            "lines": route.get("lines_used", []),
-            "totalStops": route.get("total_stops", 0),
-            "transfers": route.get("transfers", 0),
-            "duration": route.get("estimated_duration_text")
-        }
-
-    except Exception as e:
-        print(f"   ❌ Transit geometry error: {e}")
-        return None
-
-
-def get_coordinates_from_neo4j(location_name: str) -> Optional[tuple]:
-    if not location_name:
-        return None
-
-    print(f"   🔍 Semantic lookup: '{location_name}'")
-
-    coords = get_coordinates(location_name)
-
-    if coords:
-        return coords
-
-    print(f"   ❌ Not found: {location_name}")
-    return None
-
-
-def build_route_map_data(origin: str, destination: str) -> Optional[Dict]:
-    print(f"\n🗺️ Building route map: {origin} → {destination}")
-
-    origin_coords = get_coordinates_from_neo4j(origin)
-    dest_coords = get_coordinates_from_neo4j(destination)
-
-    if not origin_coords:
-        print(f"   ❌ Origin not found: {origin}")
-        return None
-
-    if not dest_coords:
-        print(f"   ❌ Destination not found: {destination}")
-        return None
-
-    start_latlng = [origin_coords[1], origin_coords[0]]
-    end_latlng = [dest_coords[1], dest_coords[0]]
-
-    routes = {}
-
-    walking = get_route_geometry_from_ors(origin_coords, dest_coords, "walking")
-    if walking:
-        routes["walking"] = {**walking, "color": "#00ff88"}
-
-    cycling = get_route_geometry_from_ors(origin_coords, dest_coords, "cycling")
-    if cycling:
-        routes["cycling"] = {**cycling, "color": "#00ccff"}
-
-    driving = get_route_geometry_from_ors(origin_coords, dest_coords, "driving")
-    if driving:
-        routes["driving"] = {**driving, "color": "#ffaa00"}
-
-    transit = get_transit_route_geometry(origin, destination)
-    if transit:
-        routes["transit"] = transit
-
-    if not routes:
-        print("   ⚠️ No routes available")
-        return None
-
-    print(f"   ✅ Route map ready: {list(routes.keys())}")
-
-    return {
-        "type": "multimodal_route",
-        "start": start_latlng,
-        "end": end_latlng,
-        "startName": origin,
-        "endName": destination,
-        "routes": routes,
-        "defaultMode": "walking" if "walking" in routes else list(routes.keys())[0]
-    }
-
-
-def build_location_map(location_name: str) -> Optional[Dict]:
-    print(f"\n📍 Building location map: {location_name}")
-
-    coords = get_coordinates_from_neo4j(location_name)
-
-    if not coords:
-        return None
-
-    info = get_location_info(location_name)
-
-    return {
-        "type": "location",
-        "location": [coords[1], coords[0]],
-        "name": info.get("name", location_name),
-        "zoom": 17,
-        "info": info
-    }
-
-
-def get_location_info(location_name: str) -> Dict:
-    try:
-        results = search_buildings(location_name, top_k=1)
-
-        if results:
-            best = results[0]
-            return {
-                "name": best["name"],
-                "id": best["id"],
-                "function": best["function"],
-                "type": "Building",
-                "score": best["score"]
-            }
-
-        coords = get_coordinates(location_name)
-        if coords:
-            with neo4j_graph.driver.session(database=neo4j_graph.database) as session:
-                result = session.run("""
-                    MATCH (s:Stop)
-                    WHERE s.longitude = $lon AND s.latitude = $lat
-                    RETURN s.name as name, s.lines as lines
-                    LIMIT 1
-                """, lon=coords[0], lat=coords[1])
-                record = result.single()
-                if record:
-                    return {
-                        "name": record["name"],
-                        "type": "Stop",
-                        "lines": record.get("lines", [])
-                    }
-
-        return {"name": location_name}
-
-    except Exception as e:
-        print(f"   ⚠️ Error getting location info: {e}")
-        return {"name": location_name}
-
-
-def extract_sensor_data(response_text: str, entity_type: str, location: str) -> Optional[Dict]:
-    import re
-
-    sensor_data = {
-        "sensor_type": entity_type.lower() if entity_type else "info",
-        "location": location,
-        "entity_type": entity_type
-    }
-
-    if entity_type == "ParkingSpot" or "parking" in response_text.lower():
-        parking_matches = re.findall(r'(\w+(?:\s+\w+)?)\s+has\s+(\d+)\s+free\s+space', response_text.lower())
-
-        if parking_matches:
-            total_free = 0
-            total_capacity = 0
-            for match in parking_matches:
-                total_free += int(match[1])
-
-            capacity_matches = re.findall(r'out of\s+(\d+)', response_text.lower())
-            if capacity_matches:
-                total_capacity = sum(int(c) for c in capacity_matches)
-            else:
-                total_capacity = 60
-
-            sensor_data["availableSpotNumber"] = total_free
-            sensor_data["totalSpotNumber"] = total_capacity
-            sensor_data["sensor_type"] = "parking"
-            return sensor_data
-
-        free_match = re.search(r'(\d+)\s*(?:free|available)\s*(?:parking)?\s*(?:spaces?|spots?)?', response_text.lower())
-        total_match = re.search(r'(?:out of|total of|capacity of)\s*(\d+)', response_text.lower())
-
-        if free_match:
-            sensor_data["availableSpotNumber"] = int(free_match.group(1))
-            sensor_data["totalSpotNumber"] = int(total_match.group(1)) if total_match else 20
-            sensor_data["sensor_type"] = "parking"
-            return sensor_data
-
-    if entity_type == "WeatherObserved" or "weather" in response_text.lower() or "temperature" in response_text.lower():
-        temp_patterns = [
-            r'temperature[:\s]+(-?\d+\.?\d*)',
-            r'(-?\d+\.?\d*)°C',
-            r'temperatures?\s+(?:of\s+)?(-?\d+\.?\d*)',
-            r'(-?\d+\.?\d*)\s*degrees',
-        ]
-
-        temp = None
-        for pattern in temp_patterns:
-            temp_match = re.search(pattern, response_text, re.IGNORECASE)
-            if temp_match:
-                temp = float(temp_match.group(1))
-                break
-
-        humidity_patterns = [
-            r'humidity[:\s]+(\d+)',
-            r'(\d+)%\s*humidity',
-            r'humidity\s+(?:of\s+)?(\d+)',
-        ]
-
-        humidity = None
-        for pattern in humidity_patterns:
-            humidity_match = re.search(pattern, response_text, re.IGNORECASE)
-            if humidity_match:
-                humidity = int(humidity_match.group(1))
-                break
-
-        wind_match = re.search(r'wind[:\s]+(\d+\.?\d*)', response_text, re.IGNORECASE)
-
-        if temp is not None or humidity is not None:
-            if temp is not None:
-                sensor_data["temperature"] = temp
-            if humidity is not None:
-                sensor_data["relativeHumidity"] = humidity
-            if wind_match:
-                sensor_data["windSpeed"] = float(wind_match.group(1))
-            sensor_data["sensor_type"] = "weather"
-            return sensor_data
-
-    if entity_type == "Traffic" or "traffic" in response_text.lower():
-        if "clear" in response_text.lower() or "free" in response_text.lower():
-            sensor_data["congestionLevel"] = "free"
-        elif "moderate" in response_text.lower() or "medium" in response_text.lower():
-            sensor_data["congestionLevel"] = "moderate"
-        elif "heavy" in response_text.lower() or "congested" in response_text.lower():
-            sensor_data["congestionLevel"] = "heavy"
-
-        delay_match = re.search(r'(\d+)\s*(?:min|minute)', response_text.lower())
-        if delay_match:
-            sensor_data["expectedDelay"] = int(delay_match.group(1))
-
-        if "congestionLevel" in sensor_data:
-            sensor_data["sensor_type"] = "traffic"
-            return sensor_data
-
-    return None
-
-
-async def generate_streaming_response(user_message: str, session_id: str, conversational: bool = True, user_location: Optional[tuple] = None, nearby_context: Optional[list] = None, walk_to_stop: Optional[dict] = None):
-    global _current_session_id
-
-    _touch_session(session_id)
-
-    try:
-        if session_id not in conversations:
-            conversations[session_id] = []
-
-        conversation_history = conversations[session_id]
-
-        _current_session_id = session_id
-        clear_captured_tools(session_id)
-
-        if conversational:
-            dialogue_mgr = get_dialogue_manager()
-
-            if dialogue_mgr and dialogue_mgr.orchestrator:
-                print(f"\n💬 Using conversational mode for session: {session_id}")
-
-                orchestrator = dialogue_mgr.orchestrator
-                conv_context = orchestrator._get_conversation_context(session_id)
-                router_output = orchestrator.router_agent.parse_query(
-                    user_message,
-                    conversation_context=conv_context
-                )
-
-                print(f"   🧭 Intent: {router_output.primary_intent}")
-
-                proactive_context = dialogue_mgr.get_proactive_context(
-                    router_output.primary_intent,
-                    router_output.entities,
-                    session_id
-                )
-                proactive_info = None
-                if proactive_context.has_issues() or proactive_context.suggestions:
-                    proactive_info = {
-                        "weather": proactive_context.weather,
-                        "parking": proactive_context.parking,
-                        "suggestions": proactive_context.suggestions
-                    }
-
-                print(f"   🚀 Executing with orchestrator...")
-
-                result = orchestrator.process_query(user_message, session_id=session_id, user_location=user_location, nearby_context=nearby_context, walk_to_stop=walk_to_stop)
-                response_text = result
-
-                state = get_dialogue_state(session_id)
-
-                map_data = None
-                entities = router_output.entities
-
-                if router_output.primary_intent in ["find_route", "get_route"]:
-                    origin = entities.get("origin")
-                    destination = entities.get("destination")
-                    if origin and destination:
-                        map_data = build_route_map_data(origin, destination)
-                elif entities.get("location") or entities.get("building_name"):
-                    location = entities.get("location") or entities.get("building_name")
-                    if location:
-                        map_data = build_location_map(location)
-
-                words = response_text.split()
-                for i, word in enumerate(words):
-                    token = word if i == len(words) - 1 else word + " "
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-                    await asyncio.sleep(0.04)
-
-                if map_data:
-                    print(f"   📤 Sending map data to frontend")
-                    yield f"data: {json.dumps({'type': 'map_data', 'content': map_data})}\n\n"
-
-                if proactive_info and proactive_info.get("weather"):
-                    weather = proactive_info["weather"]
-                    sensor_data = {
-                        "sensor_type": "weather",
-                        "temperature": weather.get("temperature"),
-                        "conditions": weather.get("conditions"),
-                        "proactive": True
-                    }
-                    yield f"data: {json.dumps({'type': 'sensor_data', 'content': sensor_data})}\n\n"
-
-                dialogue_info = {
-                    "response_type": "answer",
-                    "dialogue_phase": getattr(state, 'phase', None) and state.phase.value,
-                    "choices": None,
-                    "proactive_info": proactive_info
-                }
-                yield f"data: {json.dumps({'type': 'dialogue_info', 'content': dialogue_info})}\n\n"
-
-                yield f"data: {json.dumps({'type': 'done', 'message': 'Stream complete'})}\n\n"
-                return
-            else:
-                print("   ⚠️ Dialogue manager not available, falling back to standard mode")
-
-        response_text, updated_history = chat_optimized(
-            user_message=user_message,
-            conversation_history=conversation_history,
-            tool_router=tool_router,
-            parallel_executor=parallel_executor
-        )
-
-        conversations[session_id] = updated_history
-
-        map_data = None
-        sensor_data = None
-        captured = get_captured_tools(session_id)
-
-        print(f"\n📦 Captured tools: {list(captured.keys())}")
-
-        if 'get_mobility' in captured:
-            params = captured['get_mobility']
-            origin = params.get('origin')
-            destination = params.get('destination')
-            if origin and destination:
-                map_data = build_route_map_data(origin, destination)
-
-        elif 'get_building' in captured:
-            params = captured['get_building']
-            building_id = params.get('building_id')
-            search_query = params.get('search_query')
-            location = building_id or search_query
-            if location:
-                if building_id:
-                    location = f"Building {building_id}"
-                map_data = build_location_map(location)
-
-        elif 'get_transit_info' in captured:
-            params = captured['get_transit_info']
-            if params.get('query_type') == 'stop':
-                stop_name = params.get('stop_name')
-                if stop_name:
-                    map_data = build_location_map(stop_name)
-
-        elif 'get_landmark_info' in captured:
-            params = captured['get_landmark_info']
-            landmark_name = params.get('landmark_name')
-            if landmark_name:
-                map_data = build_location_map(landmark_name)
-
-        elif 'query_campus_sensors' in captured:
-            params = captured['query_campus_sensors']
-            entity_type = params.get('entity_type', '')
-            location = params.get('location', '')
-
-            sensor_data = extract_sensor_data(response_text, entity_type, location)
-
-        elif 'get_weather_forecast' in captured:
-            sensor_data = extract_sensor_data(response_text, 'WeatherObserved', 'Magdeburg')
-
-        words = response_text.split()
-        for i, word in enumerate(words):
-            token = word if i == len(words) - 1 else word + " "
-            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-            await asyncio.sleep(0.04)
-
-        if map_data:
-            print(f"   📤 Sending map data to frontend")
-            yield f"data: {json.dumps({'type': 'map_data', 'content': map_data})}\n\n"
-
-        if sensor_data:
-            print(f"   📤 Sending sensor data to frontend: {sensor_data.get('sensor_type')}")
-            yield f"data: {json.dumps({'type': 'sensor_data', 'content': sensor_data})}\n\n"
-
-        state = get_dialogue_state(session_id)
-        dialogue_info = {
-            "response_type": "answer",
-            "dialogue_phase": getattr(state, 'phase', None) and state.phase.value,
-            "choices": None
-        }
-        yield f"data: {json.dumps({'type': 'dialogue_info', 'content': dialogue_info})}\n\n"
-
-        yield f"data: {json.dumps({'type': 'done', 'message': 'Stream complete'})}\n\n"
-
-    except Exception as e:
-        print(f"❌ Streaming error: {e}")
-        import traceback
-        traceback.print_exc()
-        yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-        yield f"data: {json.dumps({'type': 'done', 'message': 'Stream complete'})}\n\n"
-
-
-def find_nearest_stop_to_coords(lat: float, lon: float) -> Optional[Dict]:
-    try:
-        with neo4j_graph.driver.session(database=neo4j_graph.database) as session:
-            result = session.run("""
-                MATCH (s:Stop)
-                RETURN s.name as name,
-                       coalesce(s.latitude, s.lat) as latitude,
-                       coalesce(s.longitude, s.lon) as longitude
-                LIMIT 5
-            """)
-
-            records = list(result)
-            if records and records[0]["latitude"] is not None:
-                query_result = session.run("""
-                    MATCH (s:Stop)
-                    WHERE coalesce(s.latitude, s.lat) IS NOT NULL
-                    WITH s,
-                         point({latitude: coalesce(s.latitude, s.lat),
-                                longitude: coalesce(s.longitude, s.lon)}) as stopPoint,
-                         point({latitude: $lat, longitude: $lon}) as userPoint
-                    WITH s, point.distance(stopPoint, userPoint) as distance
-                    ORDER BY distance
-                    LIMIT 1
-                    RETURN s.name as name, distance,
-                           coalesce(s.latitude, s.lat) as latitude,
-                           coalesce(s.longitude, s.lon) as longitude
-                """, lat=lat, lon=lon)
-
-                record = query_result.single()
-                if record:
-                    print(f"   📍 Found nearest stop via spatial query: {record['name']} ({int(record['distance'])}m)")
-                    return {
-                        "name": record["name"],
-                        "distance": int(record["distance"]),
-                        "latitude": record["latitude"],
-                        "longitude": record["longitude"]
-                    }
-
-            print("   📍 Stops don't have coordinates, using geocoding fallback")
-
-            major_stops = [
-                "Magdeburg Hauptbahnhof",
-                "Magdeburg Alter Markt",
-                "Magdeburg Hasselbachplatz",
-                "Magdeburg Universität",
-                "Magdeburg Universitätsbibliothek",
-                "Magdeburg City Carré",
-                "Magdeburg Reform"
-            ]
-
-            closest = None
-            min_distance = float('inf')
-
-            for stop_name in major_stops:
-                stop_coords = get_coordinates(stop_name)
-                if stop_coords:
-                    import math
-                    R = 6371000
-                    lat1, lon1 = math.radians(lat), math.radians(lon)
-                    lat2, lon2 = math.radians(stop_coords[1]), math.radians(stop_coords[0])
-
-                    dlat = lat2 - lat1
-                    dlon = lon2 - lon1
-
-                    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-                    c = 2 * math.asin(math.sqrt(a))
-                    distance = R * c
-
-                    if distance < min_distance:
-                        min_distance = distance
-                        closest = {"name": stop_name, "distance": int(distance)}
-
-            if closest:
-                print(f"   📍 Found nearest stop via geocoding fallback: {closest['name']} ({closest['distance']}m)")
-            return closest
-
-    except Exception as e:
-        print(f"   ⚠️ Error finding nearest stop: {e}")
-        import traceback
-        traceback.print_exc()
-
-    return None
-
-
+# ---------------------------------------------------------------------------
+# Location helpers
+# ---------------------------------------------------------------------------
 def is_route_question_without_origin(message: str) -> bool:
     message_lower = message.lower()
 
@@ -907,279 +387,861 @@ def is_route_question_without_origin(message: str) -> bool:
     return has_route_keyword and not has_origin
 
 
-def is_nearby_query(message: str) -> bool:
-    """Detect queries asking about nearby places/things."""
-    message_lower = message.lower()
-    nearby_patterns = [
-        "what's near me", "whats near me", "what is near me",
-        "what's nearby", "whats nearby", "what is nearby",
-        "nearby", "around me", "close to me", "near me",
-        "what's around", "whats around", "what is around",
-        "places near", "things near", "show nearby",
-        "what can i find near", "anything near"
-    ]
-    return any(p in message_lower for p in nearby_patterns)
-
-
-@app.get("/", response_class=HTMLResponse)
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+@app.get("/", response_class=HTMLResponse, tags=["meta"])
 async def root():
-    with open("templates/index.html") as f:
-        return f.read()
+    index_path = os.path.join(_templates_dir, "index.html")
+    if os.path.isfile(index_path):
+        # no-cache so the browser always revalidates the HTML and therefore
+        # picks up new ?v= asset versions immediately (the static JS/CSS stay
+        # cache-busted by their version query string).
+        return FileResponse(index_path, media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
+    return HTMLResponse("<h1>Magdeburg Assistant API</h1><p>No chat UI installed.</p>")
 
-@app.get("/api/status")
-async def api_status():
+@app.get("/status", tags=["meta"])
+async def status():
     return {
         "status": "online",
-        "version": "4.5.0",
-        "features": ["llm_map_building", "proactive_conversation", "dialogue_manager"]
+        "version": "6.0.0",
+        "features": ["langgraph", "single_agent", "mcp_optional"]
     }
 
-@app.get("/health")
+@app.get("/health", tags=["meta"])
 async def health():
-    neo4j_ok = neo4j_graph.test_connection()
-    dialogue_mgr = get_dialogue_manager()
+    neo4j_ok = await asyncio.to_thread(ctx.neo4j_graph.test_connection)
     return {
         "status": "healthy" if neo4j_ok else "degraded",
         "neo4j": "connected" if neo4j_ok else "disconnected",
-        "dialogue_manager": "ready" if dialogue_mgr else "unavailable",
-        "version": "4.5.0"
+        "pipeline": "langgraph",
+        "version": "6.0.0"
     }
 
-@app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
-    session_id = request.session_id or "default"
-
-    nearest_stop = None
-    walk_to_stop = None
-    user_location_tuple = None
-    if request.user_location:
-        loc = request.user_location
-        user_location_tuple = (loc.lat, loc.lon)
-        print(f"📍 User location: {loc.lat}, {loc.lon}")
-        nearest_stop = find_nearest_stop_to_coords(loc.lat, loc.lon)
-        if nearest_stop:
-            print(f"📍 Nearest stop: {nearest_stop['name']} ({nearest_stop['distance']}m)")
-            # Calculate actual walking route from GPS to nearest stop via ORS
-            if nearest_stop.get("latitude") and nearest_stop.get("longitude"):
-                try:
-                    walk_result = ors_client.get_route(
-                        start_coords=(loc.lon, loc.lat),  # ORS uses (lon, lat)
-                        end_coords=(nearest_stop["longitude"], nearest_stop["latitude"]),
-                        profile="walking"
-                    )
-                    if walk_result and walk_result.get("success"):
-                        walk_to_stop = {
-                            "stop_name": nearest_stop["name"],
-                            "walking_distance": walk_result["distance"],
-                            "walking_distance_meters": walk_result["distance_meters"],
-                            "walking_duration": walk_result["duration"],
-                            "walking_duration_seconds": walk_result["duration_seconds"]
-                        }
-                        print(f"🚶 Walk to {nearest_stop['name']}: {walk_result['distance']}, {walk_result['duration']}")
-                except Exception as e:
-                    print(f"⚠️ Walking route calculation failed: {e}")
-
-    message = request.message
-
-    # When user location is available, find nearby places for synthesis context
-    # (NOT injected into message — that would pollute router entity extraction)
-    nearby_context = None
-    if user_location_tuple:
-        try:
-            nearby = neo4j_graph.find_nearby_all(user_location_tuple[0], user_location_tuple[1], radius_meters=500, limit=10)
-            if nearby.get("success") and nearby.get("count", 0) > 0:
-                nearby_context = nearby["results"]
-                print(f"📍 Found {nearby['count']} nearby places for context")
-        except Exception as e:
-            print(f"⚠️ Nearby search failed: {e}")
-
-    conversational = request.conversational if request.conversational is not None else True
-
-    print(f"\n{'='*60}")
-    print(f"💬 User: {request.message}")
-    if nearest_stop:
-        print(f"📍 Location: near {nearest_stop['name']}")
-    print(f"📱 Session: {session_id}")
-    print(f"🗣️  Conversational mode: {conversational}")
-    print(f"{'='*60}\n")
-
-    try:
-        if request.stream:
-            return StreamingResponse(
-                generate_streaming_response(message, session_id, conversational=conversational, user_location=user_location_tuple, nearby_context=nearby_context, walk_to_stop=walk_to_stop),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                }
-            )
-        else:
-            global _current_session_id
-            _current_session_id = session_id
-            clear_captured_tools(session_id)
-
-            if session_id not in conversations:
-                conversations[session_id] = []
-
-            if conversational:
-                dialogue_mgr = get_dialogue_manager()
-
-                if dialogue_mgr and dialogue_mgr.orchestrator:
-                    orchestrator = dialogue_mgr.orchestrator
-                    conv_context = orchestrator._get_conversation_context()
-                    router_output = orchestrator.router_agent.parse_query(
-                        message,
-                        conversation_context=conv_context
-                    )
-
-                    proactive_context = dialogue_mgr.get_proactive_context(
-                        router_output.primary_intent,
-                        router_output.entities,
-                        session_id
-                    )
-                    proactive_info = None
-                    if proactive_context.has_issues() or proactive_context.suggestions:
-                        proactive_info = {
-                            "weather": proactive_context.weather,
-                            "parking": proactive_context.parking,
-                            "suggestions": proactive_context.suggestions
-                        }
-
-                    state = get_dialogue_state(session_id)
-                    response_text = orchestrator.process_query(message, session_id=session_id, user_location=user_location_tuple, nearby_context=nearby_context, walk_to_stop=walk_to_stop)
-
-                    return {
-                        "text": response_text,
-                        "session_id": session_id,
-                        "type": "answer",
-                        "choices": None,
-                        "dialogue_phase": getattr(state, 'phase', None) and state.phase.value,
-                        "proactive_info": proactive_info
-                    }
-
-            response_text, updated_history = chat_optimized(
-                user_message=message,
-                conversation_history=conversations[session_id],
-                tool_router=tool_router,
-                parallel_executor=parallel_executor
-            )
-
-            conversations[session_id] = updated_history
-
-            state = get_dialogue_state(session_id)
-
-            return {
-                "text": response_text,
-                "session_id": session_id,
-                "type": "answer",
-                "choices": None,
-                "dialogue_phase": getattr(state, 'phase', None) and state.phase.value
-            }
-
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-def _destroy_session(session_id: str) -> None:
-    """Remove ALL state for a session across every store."""
-    with _conversations_lock:
-        conversations.pop(session_id, None)
-    with _dialogue_states_lock:
-        dialogue_states.pop(session_id, None)
-    with _captured_tool_lock:
-        captured_tool_params.pop(session_id, None)
-
-    # Clear orchestrator per-session history
-    dialogue_mgr = get_dialogue_manager()
-    if dialogue_mgr and dialogue_mgr.orchestrator:
-        dialogue_mgr.orchestrator.reset_conversation(session_id)
-    if dialogue_mgr:
-        dialogue_mgr.states.pop(session_id, None)
-
-    print(f"🗑️ Session '{session_id}' destroyed")
+# ---------------------------------------------------------------------------
+# Card extraction — transforms tool outputs (in-process or MCP) into UI card payloads.
+# Cards are emitted as SSE events before text tokens so the widget can
+# render them above the response bubble.
+# ---------------------------------------------------------------------------
+def _coerce_output_str(output):
+    if output is None:
+        return None
+    content = getattr(output, "content", output)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                if "text" in block and isinstance(block["text"], str):
+                    parts.append(block["text"])
+                elif "content" in block:
+                    parts.append(str(block["content"]))
+        return "".join(parts) if parts else None
+    if content is None:
+        return None
+    return str(content)
 
 
-@app.post("/session/start")
-async def session_start():
-    """Call when the chat widget opens. Returns a unique session_id."""
-    import uuid
-    session_id = str(uuid.uuid4())
-    with _conversations_lock:
-        conversations[session_id] = []
-    _touch_session(session_id)
-    print(f"🆕 Session started: {session_id}")
-    return {"session_id": session_id}
-
-
-@app.post("/session/end")
-async def session_end(session_id: str):
-    """Call when the chat widget closes. Deletes all memory for this session."""
-    _destroy_session(session_id)
-    return {"status": "ok", "session_id": session_id}
-
-
-@app.post("/chat/reset")
-async def reset_chat(session_id: str = "default"):
-    """Reset conversation but keep the session alive."""
-    _destroy_session(session_id)
-    with _conversations_lock:
-        conversations[session_id] = []
-    return {"status": "ok", "session_id": session_id}
-
-
-@app.get("/chat/dialogue-state")
-async def get_dialogue_state_endpoint(session_id: str = "default"):
-    state = get_dialogue_state(session_id)
+def _card_transit_route(data):
+    if not isinstance(data, dict) or "segments" not in data:
+        return None
+    origin = data.get("origin") or {}
+    dest = data.get("destination") or {}
     return {
-        "session_id": session_id,
-        "phase": getattr(state, 'phase', None) and state.phase.value,
-        "last_destination": state.last_destination,
-        "last_transport_mode": state.last_transport_mode,
+        "type": "transit_route",
+        "origin": origin.get("search_term") or origin.get("stop"),
+        "origin_stop": origin.get("stop"),
+        "origin_walk_m": int(origin.get("walk_meters") or 0),
+        "destination": dest.get("search_term") or dest.get("stop"),
+        "destination_stop": dest.get("stop"),
+        "destination_walk_m": int(dest.get("walk_meters") or 0),
+        "total_stops": data.get("total_stops"),
+        "total_transfers": data.get("total_transfers") or 0,
+        "transfer_points": data.get("transfer_points") or [],
+        "segments": [
+            {
+                "line": s.get("line"),
+                "direction": s.get("direction"),
+                "from": s.get("from"),
+                "to": s.get("to"),
+                "num_stops": s.get("num_stops"),
+                "stops": s.get("stops") or [],
+            }
+            for s in (data.get("segments") or [])
+        ],
     }
 
-@app.post("/tts")
-async def text_to_speech(request: TTSRequest):
+
+def _card_route(data, mode):
+    if not isinstance(data, dict) or data.get("success") is False or data.get("available") is False:
+        return None
+
+    def _num(x):
+        return x if isinstance(x, (int, float)) else None
+
+    distance = _num(data.get("distance_meters")) or _num(data.get("distance_m"))
+    duration = _num(data.get("duration_seconds")) or _num(data.get("duration_s"))
+    if distance is None and duration is None:
+        return None
+    traffic = data.get("traffic") if isinstance(data.get("traffic"), dict) else {}
+    card = {
+        "type": "route",
+        "mode": mode,
+        "distance_m": int(distance) if distance is not None else None,
+        "duration_s": int(duration) if duration is not None else None,
+        "traffic_delay_s": data.get("traffic_delay_seconds"),
+        "congestion": traffic.get("congestion"),
+        "directions": (data.get("directions") or data.get("instructions") or [])[:8],
+    }
+    # Decode the compact ORS polyline → [[lat, lon], ...] HERE (not in the tool
+    # result) so the coordinate array reaches the map widget but never the
+    # agent's context. Downsampled to keep the SSE card small.
+    coords = decode_geometry(data.get("geometry"))
+    if isinstance(coords, list) and len(coords) > 1:
+        card["geometry"] = _simplify_coords(coords)
+    return card
+
+
+def _simplify_coords(coords, max_points=80):
+    """Uniformly downsample a coordinate list to <= max_points, always keeping
+    the first and last point. ~80 points is plenty for a city-scale polyline."""
+    n = len(coords)
+    if n <= max_points:
+        return coords
+    step = n / float(max_points)
+    out = [coords[int(i * step)] for i in range(max_points)]
+    out[-1] = coords[-1]
+    return out
+
+
+def _card_place(data, kind="place"):
+    """Build a map-pin card from a place-resolution tool result (get_building /
+    resolve_place_to_coordinates). Carries the Neo4j coordinates so the
+    dashboard map can drop a marker at the resolved location."""
+    if not isinstance(data, dict) or data.get("found") is False or data.get("success") is False:
+        return None
+    lat = data.get("latitude")
+    lon = data.get("longitude")
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        coords = data.get("coordinates")
+        if isinstance(coords, list) and len(coords) >= 2:
+            lat, lon = coords[0], coords[1]
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        return None
+    name = data.get("name") or data.get("matched_name") or data.get("place")
+    return {"type": "place", "name": name, "lat": lat, "lon": lon, "kind": kind}
+
+
+def _route_cards_from_modes(data):
+    """Extract per-mode route cards from a {routes: {walking, cycling, driving}}
+    payload (get_all_routes / get_routes_for_places)."""
+    routes = data.get("routes") if isinstance(data.get("routes"), dict) else data
+    cards = []
+    for m in ("walking", "cycling", "driving"):
+        sub = routes.get(m) if isinstance(routes, dict) else None
+        if isinstance(sub, dict):
+            c = _card_route(sub, m)
+            if c:
+                cards.append(c)
+    return cards
+
+
+# --- Generic place-pin extraction -------------------------------------------
+# Pins ANY place (a name + valid Magdeburg coordinates) the agent surfaces via
+# open-ended tools (execute_cypher POI/building lookups, the context bridge) —
+# not just the few tools with bespoke handlers. Coordinate-driven, so it works
+# for restaurants, cafés, landmarks, etc. without tool-by-tool wiring.
+_MGB_PIN_BOUNDS = (52.0, 52.3, 11.4, 11.9)  # lat_min, lat_max, lon_min, lon_max
+_LAT_KEYS = ("latitude", "lat")
+_LON_KEYS = ("longitude", "lon", "lng")
+_NAME_KEYS = ("name", "title", "label", "matched_name")
+
+
+def _in_mgb(lat, lon):
+    a, b, c, d = _MGB_PIN_BOUNDS
+    return a <= lat <= b and c <= lon <= d
+
+
+def _place_from_dict(obj):
+    """A {name, lat, lon} pin from a flat dict that carries valid Magdeburg
+    coordinates, else None."""
+    if not isinstance(obj, dict):
+        return None
+    lat = next((obj[k] for k in _LAT_KEYS if isinstance(obj.get(k), (int, float))), None)
+    lon = next((obj[k] for k in _LON_KEYS if isinstance(obj.get(k), (int, float))), None)
+    if lat is None or lon is None or not _in_mgb(lat, lon):
+        return None
+    name = next((obj[k] for k in _NAME_KEYS
+                 if isinstance(obj.get(k), str) and obj.get(k).strip()), None)
+    return {"type": "place", "name": name, "lat": lat, "lon": lon, "kind": "place"}
+
+
+def _places_from_record(rec):
+    """Find pins in one result record: the record itself, else any node-valued
+    column one level down (handles both `RETURN p.lat AS latitude` and `RETURN p`)."""
+    p = _place_from_dict(rec)
+    if p:
+        return [p]
+    found = []
+    if isinstance(rec, dict):
+        for v in rec.values():
+            p2 = _place_from_dict(v)
+            if p2:
+                found.append(p2)
+    return found
+
+
+def _card_places_generic(data, cap=12):
+    """Extract map pins from an arbitrary tool result: a list of records
+    (execute_cypher) or a single object with a `location` (context bridge).
+    Deduped by rounded coords, capped to keep the SSE payload small."""
+    if isinstance(data, list):
+        records = data
+    elif isinstance(data, dict):
+        loc = data.get("location")
+        records = [loc] if isinstance(loc, dict) else [data]
+    else:
+        return []
+    cards, seen = [], set()
+    for rec in records:
+        for p in _places_from_record(rec):
+            key = (round(p["lat"], 5), round(p["lon"], 5))
+            if key in seen:
+                continue
+            seen.add(key)
+            cards.append(p)
+            if len(cards) >= cap:
+                return cards
+    return cards
+
+
+def _extract_cards_from_tool(tool_name, raw_output):
+    content = _coerce_output_str(raw_output)
+    if not content:
+        return []
     try:
-        audio_generator = elevenlabs_client.text_to_speech.convert(
-            voice_id=request.voice_id or ELEVENLABS_VOICE_ID,
-            text=request.text,
-            model_id="eleven_turbo_v2_5"
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        logger.debug(f"[CARD] tool {tool_name} returned non-JSON content; skipping")
+        return []
+    if isinstance(data, dict) and data.get("error"):
+        return []
+
+    name = (tool_name or "").lower()
+
+    if "find_transit_route" in name:
+        c = _card_transit_route(data)
+        return [c] if c else []
+    # Compound planners first (their names also contain "routes"); each carries
+    # a {routes: {walking, cycling, driving}} block with decoded geometry.
+    if "get_routes_for_places" in name and isinstance(data, dict):
+        return _route_cards_from_modes(data)
+    if "get_all_routes" in name and isinstance(data, dict):
+        return _route_cards_from_modes(data)
+    if "walking_route" in name:
+        c = _card_route(data, "walking")
+        return [c] if c else []
+    if "cycling_route" in name:
+        c = _card_route(data, "cycling")
+        return [c] if c else []
+    if "driving_route" in name:
+        c = _card_route(data, "driving")
+        return [c] if c else []
+    # Place lookups → map pin at the resolved coordinates.
+    if "get_building" in name:
+        c = _card_place(data, kind="building")
+        return [c] if c else []
+    if "resolve_place_to_coordinates" in name:
+        c = _card_place(data, kind="place")
+        return [c] if c else []
+    # Open-ended results → pin EVERY place that carries coordinates (POIs,
+    # buildings, landmarks via Cypher; the context bridge's resolved location).
+    # Generic, so any place the agent surfaces shows on the map.
+    if "execute_cypher" in name or "get_nearby_context" in name:
+        return _card_places_generic(data)
+    return []
+
+
+def _extract_cards_from_messages(messages):
+    """Build UI cards from the single agent's tool-call results.
+
+    Walks the ReAct message list the agent returns in state["messages"]:
+    first maps each tool_call_id -> tool name from the AIMessages, then
+    feeds every ToolMessage's (name, content) to _extract_cards_from_tool.
+
+    This is the MCP single-agent replacement for the old
+    _extract_cards_from_agent_output, which read the now-unused
+    `agent_results` state field and therefore emitted no cards after the
+    multi-agent -> single-agent refactor.
+    """
+    if not isinstance(messages, list):
+        return []
+
+    # tool_call_id -> tool name, harvested from AIMessage.tool_calls.
+    id_to_name = {}
+    for m in messages:
+        for tc in (getattr(m, "tool_calls", None) or []):
+            tc_id = tc.get("id")
+            tc_name = tc.get("name")
+            if tc_id and tc_name:
+                id_to_name[tc_id] = tc_name
+
+    cards = []
+    for m in messages:
+        if type(m).__name__ != "ToolMessage":
+            continue
+        name = id_to_name.get(getattr(m, "tool_call_id", None)) or getattr(m, "name", None)
+        try:
+            cards.extend(_extract_cards_from_tool(name, getattr(m, "content", None)))
+        except Exception as e:
+            logger.debug(f"[CARD] extraction from tool message failed: {e}")
+    return cards
+
+
+def _card_dedup_key(card):
+    t = card.get("type")
+    if t == "transit_route":
+        return f"tr:{card.get('origin_stop')}->{card.get('destination_stop')}"
+    if t == "route":
+        return f"rt:{card.get('mode')}:{card.get('distance_m')}:{card.get('duration_s')}"
+    return json.dumps(card, sort_keys=True)
+
+
+def _build_graph_input(message: str, session_id: str, user_location, conversation_history):
+    return {
+        "query": message,
+        "session_id": session_id,
+        "messages": [],
+        "user_location": user_location,
+        "conversation_history": conversation_history,
+        "response": None,
+        "cache_hit": False,
+    }
+
+
+class _ThinkStripper:
+    """Stateful streaming filter that drops <think>...</think> spans.
+    Buffers the tail so tokens split mid-tag are not leaked.
+    Tracks nesting depth so nested <think> tags are handled."""
+
+    _SAFE_TAIL = 8  # longer than len("</think>")
+
+    def __init__(self):
+        self._buf = ""
+        self._depth = 0
+
+    def feed(self, token: str) -> str:
+        self._buf += token
+        out = []
+        while True:
+            if self._depth > 0:
+                close_idx = self._buf.find("</think>")
+                open_idx = self._buf.find("<think>")
+                if close_idx == -1 and open_idx == -1:
+                    if len(self._buf) > self._SAFE_TAIL:
+                        self._buf = self._buf[-self._SAFE_TAIL:]
+                    break
+                if open_idx != -1 and (close_idx == -1 or open_idx < close_idx):
+                    self._buf = self._buf[open_idx + len("<think>"):]
+                    self._depth += 1
+                else:
+                    self._buf = self._buf[close_idx + len("</think>"):].lstrip()
+                    self._depth -= 1
+            else:
+                idx = self._buf.find("<think>")
+                if idx == -1:
+                    if len(self._buf) > self._SAFE_TAIL:
+                        out.append(self._buf[:-self._SAFE_TAIL])
+                        self._buf = self._buf[-self._SAFE_TAIL:]
+                    break
+                out.append(self._buf[:idx])
+                self._buf = self._buf[idx + len("<think>"):]
+                self._depth = 1
+        return "".join(out)
+
+    def flush(self) -> str:
+        if self._depth > 0:
+            self._buf = ""
+            return ""
+        tail = self._buf
+        self._buf = ""
+        return tail
+
+
+async def _compute_proactive_context(user_location) -> str:
+    """Best-effort nearby live context (weather/parking/traffic) for the
+    streaming path — mirrors the graph's proactive bridge node."""
+    if not user_location:
+        return ""
+    try:
+        from graph.nodes.proactive_node import create_proactive_node
+        node = create_proactive_node(ctx.fiware_client)
+        res = await node({"user_location": user_location})
+        return (res or {}).get("proactive_context", "") or ""
+    except Exception:
+        return ""
+
+
+async def _compose_user_message(query, user_location, conversation_history) -> str:
+    """Assemble the agent's user message exactly like the single_agent graph
+    node does (recent history + location + proactive context + question)."""
+    from graph.agent import _format_history, _format_location
+    parts = []
+    history_text = _format_history(conversation_history or [])
+    if history_text:
+        parts.append(f"Recent conversation:\n{history_text}")
+    location_text = _format_location(user_location)
+    if location_text:
+        parts.append(location_text)
+    proactive_context = await _compute_proactive_context(user_location)
+    if proactive_context:
+        parts.append(proactive_context)
+    parts.append(f"Question: {query}")
+    return "\n\n".join(parts)
+
+
+async def _stream_chat(message: str, orig_message: str, session_id: str,
+                       user_location, conversation_history):
+    """Stream the agent's answer token-by-token (ChatGPT/Claude-style).
+
+    Streams the gpt-5.4 ReAct agent DIRECTLY with stream_mode=["values",
+    "messages"] so the final-answer tokens surface as the model writes them
+    (the outer graph couldn't propagate them because the agent ran inside an
+    opaque ainvoke node). The thinking model's <think>…</think> spans are
+    stripped so only the answer shows; the final tool transcript still yields
+    the map cards.
+
+    A background producer feeds tokens onto a queue while the consumer emits
+    SSE heartbeats during the (tool-calling) gap before the first token. Falls
+    back to the one-shot graph path if the agent handle is unavailable. Note:
+    the streaming path skips the semantic cache (disabled in prod anyway).
+    """
+    agent = getattr(ctx, "single_agent", None)
+    if agent is None:
+        async for ev in _stream_chat_oneshot(
+            message, orig_message, session_id, user_location, conversation_history
+        ):
+            yield ev
+        return
+
+    user_msg = await _compose_user_message(message, user_location, conversation_history)
+    inputs = {"messages": [HumanMessage(content=user_msg)]}
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _producer():
+        stripper = _ThinkStripper()
+        final_msgs = None
+        try:
+            async for mode, data in agent.astream(inputs, stream_mode=["values", "messages"]):
+                if mode == "messages":
+                    chunk = data[0] if isinstance(data, tuple) else data
+                    if isinstance(chunk, AIMessageChunk):
+                        piece = _coerce_output_str(chunk)
+                        if piece:
+                            visible = stripper.feed(piece)
+                            if visible:
+                                await queue.put(("token", visible))
+                elif mode == "values":
+                    if isinstance(data, dict) and data.get("messages"):
+                        final_msgs = data["messages"]
+            tail = stripper.flush()
+            if tail:
+                await queue.put(("token", tail))
+            await queue.put(("final", final_msgs))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.exception("agent token-stream failed")
+            await queue.put(("error", str(e)))
+        finally:
+            await queue.put(("__end__", None))
+
+    prod_task = asyncio.create_task(_producer())
+    KEEPALIVE_INTERVAL = 2.5
+    start = time.monotonic()
+    acc: list = []
+    final_msgs = None
+    errored = False
+
+    try:
+        while True:
+            try:
+                kind, payload = await asyncio.wait_for(queue.get(), timeout=KEEPALIVE_INTERVAL)
+            except asyncio.TimeoutError:
+                if time.monotonic() - start > AGENT_TIMEOUT:
+                    logger.warning(f"[STREAM] agent exceeded {AGENT_TIMEOUT}s (session={session_id})")
+                    if not acc:
+                        msg = "Sorry, that took longer than expected to look up. Please try again."
+                        acc.append(msg)
+                        yield f"data: {json.dumps({'type':'token','content':msg})}\n\n"
+                    break
+                yield f"event: heartbeat\ndata: {json.dumps({'ts': int(time.time())})}\n\n"
+                continue
+
+            if kind == "__end__":
+                break
+            if kind == "token":
+                acc.append(payload)
+                yield f"data: {json.dumps({'type':'token','content':payload})}\n\n"
+            elif kind == "final":
+                final_msgs = payload
+            elif kind == "error":
+                errored = True
+                if not acc:
+                    yield f"data: {json.dumps({'type':'error','content':'stream error'})}\n\n"
+
+        full_text = "".join(acc).strip()
+
+        # Nothing visible streamed (e.g. the answer only landed in the final
+        # message) — recover it so the user still sees an answer.
+        if not full_text and final_msgs:
+            for m in reversed(final_msgs):
+                if isinstance(m, AIMessage):
+                    c = _coerce_output_str(m)
+                    if c and c.strip():
+                        full_text = c.strip()
+                        yield f"data: {json.dumps({'type':'token','content':full_text})}\n\n"
+                        break
+
+        # Map cards from the final tool transcript.
+        if final_msgs:
+            try:
+                cards = _extract_cards_from_messages(final_msgs)
+            except Exception as card_err:
+                logger.debug(f"[CARD] extraction from tool messages failed: {card_err}")
+                cards = []
+            emitted_card_keys = set()
+            for card in cards:
+                key = _card_dedup_key(card)
+                if key in emitted_card_keys:
+                    continue
+                emitted_card_keys.add(key)
+                yield f"data: {json.dumps({'type':'card','card':card})}\n\n"
+
+        yield f"data: {json.dumps({'type':'done','session_id':session_id})}\n\n"
+
+        if full_text and not errored:
+            _add_to_history(session_id, orig_message, full_text)
+
+    finally:
+        if not prod_task.done():
+            prod_task.cancel()
+
+
+async def _stream_chat_oneshot(message: str, orig_message: str, session_id: str,
+                       user_location, conversation_history):
+    """One-shot fallback: run the full graph via ainvoke and send the answer in
+    a single chunk. Used only when the streaming agent handle is unavailable.
+
+    Yield SSE chunks shaped for the dashbot widget.
+
+    Runs the graph via `ainvoke()` in a background task (same call APP.py
+    uses — known-good) and emits SSE heartbeats while waiting so the
+    widget's spinner stays alive. When the graph finishes, we extract the
+    final response + cards from the terminal state and stream them as
+    one SSE `token` event followed by a `done` event.
+
+    Why not astream / astream_events: both APIs in LangGraph 0.6.x fail
+    to propagate events from `create_react_agent` sub-agents up to the
+    parent iterator. The parent sees only the first 1-2 top-level
+    updates, then StopAsyncIteration while sub-agents are still running
+    — the widget receives nothing and shows "Sorry, I could not generate
+    a response." Reverting to ainvoke trades token-level streaming for
+    reliability; reintroduce token streaming only if we migrate to
+    LangGraph's newer multi-mode streaming (`stream_mode=["messages"]`)
+    and confirm it propagates correctly.
+    """
+    input_state = _build_graph_input(message, session_id, user_location, conversation_history)
+    # Fresh thread_id per invocation so LangGraph's checkpointer doesn't
+    # replay stale state from the previous turn. Conversation memory is
+    # managed separately via `_session_histories` and passed in via
+    # `conversation_history`, so we don't need checkpointer persistence.
+    # This sidesteps a 60s fiware_agent hang observed on repeat queries
+    # within the same session (confirmed by the 2026-04-23 parking query
+    # log — first query 18s, second query 63s in the same thread_id).
+    import uuid as _uuid
+    config = {"configurable": {"thread_id": f"{session_id}:{_uuid.uuid4().hex[:8]}"}}
+
+    KEEPALIVE_INTERVAL = 2.5
+    heartbeat_count = 0
+
+    # Kick off the graph in a background task so we can heartbeat while
+    # it runs. asyncio.shield prevents wait_for's timeout from cancelling
+    # the inner task — we only want timeout for the WAITER, not the work.
+    graph_task = asyncio.create_task(
+        ctx.graph_app.ainvoke(input_state, config=config)
+    )
+
+    try:
+        while not graph_task.done():
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(graph_task),
+                    timeout=KEEPALIVE_INTERVAL,
+                )
+            except asyncio.TimeoutError:
+                heartbeat_count += 1
+                logger.info(
+                    f"[STREAM-DIAG] heartbeat #{heartbeat_count} "
+                    f"(graph running, session={session_id})"
+                )
+                yield f"event: heartbeat\ndata: {json.dumps({'ts': int(time.time())})}\n\n"
+
+        # Graph finished — materialise its result.
+        result = graph_task.result()
+        logger.info(
+            f"[STREAM-DIAG] ainvoke complete after {heartbeat_count} heartbeats, "
+            f"keys={list(result.keys()) if isinstance(result, dict) else type(result).__name__}"
         )
 
-        audio_bytes = BytesIO()
-        for chunk in audio_generator:
-            audio_bytes.write(chunk)
-        audio_bytes.seek(0)
+        response_text = None
+        if isinstance(result, dict):
+            response_text = result.get("final_response") or result.get("response")
 
-        return StreamingResponse(audio_bytes, media_type="audio/mpeg")
+            # Cards come from the agent's tool results (find_transit_route +
+            # routing tools). Walk the ReAct transcript the single agent
+            # returns in `messages` and build cards from those tool outputs.
+            try:
+                cards = _extract_cards_from_messages(result.get("messages"))
+            except Exception as card_err:
+                logger.debug(f"[CARD] extraction from tool messages failed: {card_err}")
+                cards = []
+            emitted_card_keys = set()
+            for card in cards:
+                key = _card_dedup_key(card)
+                if key in emitted_card_keys:
+                    continue
+                emitted_card_keys.add(key)
+                yield f"data: {json.dumps({'type':'card','card':card})}\n\n"
+
+        if response_text:
+            yield f"data: {json.dumps({'type':'token','content':response_text})}\n\n"
+            _add_to_history(session_id, orig_message, response_text)
+        else:
+            logger.warning(
+                f"[STREAM-DIAG] graph produced no response. "
+                f"keys={list(result.keys()) if isinstance(result, dict) else 'n/a'}"
+            )
+
+        done_payload = {"type": "done", "session_id": session_id}
+        yield f"data: {json.dumps(done_payload)}\n\n"
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("stream chat failed")
+        yield f"data: {json.dumps({'type':'error','content':'stream error'})}\n\n"
+        yield f"data: {json.dumps({'type':'done','session_id':session_id})}\n\n"
+    except BaseException as be:
+        # Client disconnect / cancellation. Kill the graph task so the
+        # MCP subprocesses and Neo4j sessions aren't kept busy after the
+        # widget walked away.
+        logger.warning(
+            f"[STREAM-DIAG] stream interrupted by {type(be).__name__}: {be} "
+            f"(heartbeats={heartbeat_count})"
+        )
+        if not graph_task.done():
+            graph_task.cancel()
+        raise
+    finally:
+        if not graph_task.done():
+            graph_task.cancel()
 
-@app.get("/route")
-async def test_route(origin: str, destination: str):
-    map_data = build_route_map_data(origin, destination)
-    return {"success": map_data is not None, "map_data": map_data}
 
-@app.get("/location")
-async def test_location(name: str):
-    coords = get_coordinates_from_neo4j(name)
-    if coords:
-        return {"success": True, "name": name, "coords": {"lng": coords[0], "lat": coords[1]}}
-    return {"success": False, "error": f"Not found: {name}"}
+def _maybe_find_nearest_stop(user_coords: Coordinates):
+    """Run Neo4j nearest-stop lookup; return dict or None on failure.
 
-@app.get("/nearby")
-async def nearby_places(lat: float, lon: float, radius: int = 500, limit: int = 10):
-    """Find nearby buildings, stops, POIs, and landmarks from GPS coordinates."""
+    Thread-safe, blocking — intended for asyncio.to_thread() so the
+    request-path event loop is not blocked while Neo4j responds (L24).
+    Results are cached for NEAREST_STOP_TTL seconds keyed by rounded
+    coordinates so a stationary user doesn't re-hit Neo4j every turn.
+    """
+    key = (
+        round(user_coords.lat, NEAREST_STOP_PRECISION),
+        round(user_coords.lon, NEAREST_STOP_PRECISION),
+    )
+    now = time.time()
+    with _nearest_stop_cache_lock:
+        cached = _nearest_stop_cache.get(key)
+        if cached and now - cached[0] < NEAREST_STOP_TTL:
+            return cached[1]
     try:
-        result = neo4j_graph.find_nearby_all(lat, lon, radius_meters=radius, limit=limit)
-        return result
+        result = ctx.neo4j_graph.find_nearest_stop(user_coords)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning(f"[nearest_stop] lookup failed: {e}")
+        return None
+    with _nearest_stop_cache_lock:
+        _nearest_stop_cache[key] = (now, result)
+    return result
+
+
+@app.post("/chat", tags=["chat"])
+async def chat_endpoint(
+    request: ChatRequest,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token"),
+):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    if not await _rate_limiter.check(client_ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    session_id = request.session_id
+    if session_id:
+        # If a session_id is provided, the token is mandatory.
+        with _session_active_lock:
+            expected = _session_tokens.get(session_id)
+        if expected is None:
+            raise HTTPException(status_code=404, detail="unknown session_id")
+        if not x_session_token or not secrets.compare_digest(expected, x_session_token):
+            raise HTTPException(status_code=401, detail="invalid or missing session token")
+    else:
+        import uuid
+        session_id = str(uuid.uuid4())
+
+    # L24: fire the nearest-stop lookup in a background thread **in parallel**
+    # with the rest of the pipeline so it never adds to the critical path.
+    # The result is only used to rewrite the message when we detect a
+    # route question without an explicit origin.
+    nearest_stop_task = None
+    user_location = None
+    if request.user_location:
+        loc = request.user_location
+        user_location = {"lat": loc.lat, "lon": loc.lon}
+        user_coords = Coordinates(lat=loc.lat, lon=loc.lon)
+        logger.info(f"User location: {user_coords.lat}, {user_coords.lon}")
+        nearest_stop_task = asyncio.create_task(
+            asyncio.to_thread(_maybe_find_nearest_stop, user_coords)
+        )
+
+    message = request.message
+    # Only block on nearest-stop resolution if we genuinely need it
+    # (route question without an origin). Otherwise let the task keep
+    # running — the graph's location node can pick up user_location itself.
+    if nearest_stop_task is not None and is_route_question_without_origin(message):
+        try:
+            nearest_stop = await asyncio.wait_for(nearest_stop_task, timeout=1.5)
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.info(f"[nearest_stop] skipped ({type(e).__name__})")
+            nearest_stop = None
+        if nearest_stop:
+            stop_name = nearest_stop['name'].replace("Magdeburg ", "")
+            message = f"{message} (I'm currently near {stop_name})"
+            logger.info(f"Modified message: {message}")
+            logger.info(f"Location: near {nearest_stop['name']}")
+    elif nearest_stop_task is not None:
+        # Detach: let it run, but don't crash on GC warnings.
+        def _swallow(task):
+            try:
+                task.result()
+            except Exception:
+                pass
+        nearest_stop_task.add_done_callback(_swallow)
+
+    # H29: redact PII from any user-originated text before logging.
+    safe_user_input = _redact_pii(request.message)
+    logger.info(f"User: {safe_user_input} | Session: {session_id} (stream={request.stream})")
+
+    _touch_session(session_id)
+    conversation_history = _get_conversation_history(session_id)
+
+    if request.stream:
+        return StreamingResponse(
+            _stream_chat(message, request.message, session_id, user_location, conversation_history),
+            media_type="text/event-stream",
+            # Content-Encoding: identity opts this stream OUT of GZipMiddleware,
+            # which otherwise buffers the whole SSE response in its gzip
+            # compressor and only flushes at the end (Starlette's GZipResponder
+            # never flushes per chunk) — that defeats token streaming entirely.
+            # X-Accel-Buffering disables proxy buffering (nginx/traefik).
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Content-Encoding": "identity",
+            },
+        )
+
+    try:
+        try:
+            # See _stream_chat for rationale on per-invocation thread_id.
+            import uuid as _uuid
+            result = await asyncio.wait_for(
+                ctx.graph_app.ainvoke(
+                    _build_graph_input(message, session_id, user_location, conversation_history),
+                    config={"configurable": {"thread_id": f"{session_id}:{_uuid.uuid4().hex[:8]}"}},
+                ),
+                timeout=30.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"/chat request exceeded 30s deadline (session={session_id})")
+            raise HTTPException(status_code=504, detail="Request exceeded 30s deadline")
+
+        response_text = result.get("response", "I'm sorry, I couldn't process your request.")
+
+        # L23: fast return. History persistence, PII redaction on the reply,
+        # and any future cache_store writes happen after the HTTP response
+        # has been flushed — the user sees the answer sooner.
+        background_tasks.add_task(
+            _add_to_history, session_id, request.message, response_text
+        )
+
+        return {
+            "text": response_text,
+            "session_id": session_id,
+            "type": "answer",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"chat endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/session/start", tags=["session"])
+async def session_start():
+    import uuid
+    session_id = str(uuid.uuid4())
+    session_token = secrets.token_urlsafe(32)
+    with _session_active_lock:
+        _session_tokens[session_id] = session_token
+    _touch_session(session_id)
+    logger.info(f"Session started: {session_id}")
+    return {"session_id": session_id, "session_token": session_token}
+
+
+@app.post("/session/{session_id}/end", tags=["session"])
+async def session_end(session_id: str = Depends(verify_session_token)):
+    with _session_active_lock:
+        _session_last_active.pop(session_id, None)
+        _session_histories.pop(session_id, None)
+        _session_tokens.pop(session_id, None)
+    logger.info(f"Session '{session_id}' destroyed")
+    return {"status": "ok", "session_id": session_id}
+
+
+class ResetRequest(BaseModel):
+    session_id: str = Field(..., max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+@app.post("/chat/reset", tags=["chat"])
+async def chat_reset(
+    request: ResetRequest,
+    x_session_token: Optional[str] = Header(default=None, alias="X-Session-Token"),
+):
+    session_id = verify_session_token(request.session_id, x_session_token)
+    with _session_active_lock:
+        _session_histories.pop(session_id, None)
+    logger.info(f"Session '{session_id}' history cleared")
+    return {"status": "ok", "session_id": session_id}
+
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n🚀 Starting IMIQ API v4.5")
-    print("   Proactive Conversational Flow + LLM-based map building")
-    uvicorn.run("api:app", host="0.0.0.0", port=5000, reload=True)
-
+    logger.info("Starting IMIQ API v6.0 (LangGraph single-agent pipeline on MCP tools)")
+    # reload=False so WatchFiles does not restart the server mid-request.
+    # Restarts kill the 4 MCP stdio subprocesses and wipe in-memory session
+    # state, which manifested as agent timeouts and 404s on /session/end.
+    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=False)

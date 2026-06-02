@@ -35,33 +35,41 @@
 
 .avatar-glow {
     position: absolute;
-    inset: -4px;
+    inset: -8px;
     border-radius: 50%;
-    background: conic-gradient(from 0deg, var(--db-primary), var(--db-accent), var(--db-primary));
-    animation: dashbot-spin 4s linear infinite;
-    opacity: 0.7;
-}
-
-@keyframes dashbot-spin {
-    to { transform: rotate(360deg); }
+    background:
+        radial-gradient(circle at 50% 50%, rgba(98, 60, 234, 0.45) 0%, rgba(98, 60, 234, 0.12) 45%, transparent 70%),
+        radial-gradient(circle at 50% 50%, rgba(122, 0, 63, 0.35) 0%, rgba(122, 0, 63, 0.08) 55%, transparent 75%);
+    opacity: 0.85;
+    filter: saturate(130%);
+    pointer-events: none;
 }
 
 .avatar-inner {
     position: relative;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--db-primary), var(--db-primary-dark));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 24px rgba(122, 0, 63, 0.45);
-    color: white;
-    font-size: 13px;
-    font-weight: 700;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    text-align: center;
-    line-height: 1.1;
+    width: 80px;
+    height: 80px;
+    /* Mascot avatar. The URL is relative to THIS stylesheet, so it resolves
+       under /static/ locally AND /api/dashbot/static/ on the dashboard.
+       Drop a TRANSPARENT-background PNG at static/dashbot-avatar.png. */
+    background-image: url('dashbot-avatar.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    /* Float over the map: a soft shadow shaped by the mascot's alpha, no
+       circle/box behind it. */
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+    will-change: transform, opacity;
+}
+
+.avatar-inner::before {
+    content: none;  /* no glossy highlight over the mascot */
+}
+
+.avatar-inner > svg {
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 .avatar-status-dot {
@@ -140,8 +148,15 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 18px;
-    background: linear-gradient(135deg, var(--db-primary), var(--db-primary-dark));
+    background:
+        linear-gradient(135deg, rgba(122, 0, 63, 0.88), rgba(90, 0, 47, 0.82)),
+        rgba(255, 255, 255, 0.08);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
 }
 
 .dashbot-header-left {
@@ -151,13 +166,14 @@
 }
 
 .dashbot-header-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    /* standing mascot (relative url → works at /static/ and /api/dashbot/static/) */
+    background-image: url('avatar-standing.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
 .dashbot-header-avatar svg {
@@ -236,7 +252,11 @@
     flex: 1;
     padding: 18px;
     overflow-y: auto;
-    background: #f7f8fa;
+    background:
+        radial-gradient(circle at 15% 12%, rgba(122, 0, 63, 0.065) 0%, transparent 42%),
+        radial-gradient(circle at 88% 28%, rgba(98, 60, 234, 0.07) 0%, transparent 48%),
+        radial-gradient(circle at 50% 105%, rgba(168, 85, 247, 0.055) 0%, transparent 55%),
+        #fafbfd;
     scroll-behavior: smooth;
 }
 
@@ -257,14 +277,26 @@
 }
 
 .dashbot-welcome-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: rgba(122,0,63,0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    width: 96px;
+    height: 110px;
+    /* standing mascot, floating (no circle/box behind it) */
+    background-image: url('avatar-standing.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
     margin: 0 auto 14px;
+    filter: drop-shadow(0 6px 14px rgba(122, 0, 63, 0.22));
+    will-change: transform, opacity;
+}
+
+.dashbot-welcome-icon::before {
+    content: none;  /* no glossy highlight over the mascot */
+}
+
+.dashbot-welcome-icon > svg {
+    position: relative;
+    z-index: 1;
 }
 
 .dashbot-welcome h3 {
@@ -332,7 +364,36 @@
 
 .dashbot-msg.bot {
     display: flex;
-    justify-content: flex-start;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.dashbot-msg.bot.with-avatar {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.dashbot-msg.bot.with-avatar > .db-bot-avatar {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dashbot-msg.bot.with-avatar > .dashbot-bubble,
+.dashbot-msg.bot.with-avatar > .dashbot-msg-footer,
+.dashbot-msg.bot.with-avatar > .dashbot-msg-time {
+    align-self: flex-start;
+}
+
+/* When avatar exists, the bubble + footer + time form a vertical stack on the right */
+.dashbot-msg.bot.with-avatar {
+    flex-wrap: wrap;
+}
+.dashbot-msg.bot.with-avatar > .db-bot-avatar {
+    order: 0;
+}
+.dashbot-msg.bot.with-avatar > *:not(.db-bot-avatar) {
+    max-width: calc(100% - 36px);
 }
 
 .dashbot-bubble {
@@ -393,227 +454,59 @@
     flex-shrink: 0;
 }
 
-.dashbot-bubble .db-section-header {
-    font-weight: 600;
-    color: var(--db-primary);
-    margin: 10px 0 2px;
-    padding: 0;
-    font-size: 12.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.dashbot-bubble .db-section-header:first-child {
-    margin-top: 0;
-}
-
-.dashbot-bubble .db-steps-container {
-    margin: 6px 0 10px;
-    padding: 10px 12px;
-    background: #f7f8fa;
-    border-radius: 10px;
-    border: 1px solid #eef0f4;
-}
-
-.dashbot-bubble .db-intro {
-    font-size: 13px;
-    color: #374151;
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #eef0f4;
-    line-height: 1.45;
-}
-
-.dashbot-bubble .db-step {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f3;
-}
-
-.dashbot-bubble .db-step:last-of-type {
-    border-bottom: none;
-}
-
-.dashbot-bubble .db-alt {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #eef0f4;
-}
-
-.dashbot-bubble .db-step-num {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--db-primary);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-
-.dashbot-bubble .db-step-text {
-    flex: 1;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #374151;
-}
-
-.dashbot-bubble .db-time {
-    display: inline-block;
-    background: #ede9fe;
-    color: #5b21b6;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.dashbot-bubble .db-distance {
-    display: inline-block;
-    background: #dbeafe;
-    color: #1e40af;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.dashbot-bubble .db-parking-highlight {
-    display: inline-block;
-    background: #dcfce7;
-    color: #166534;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.dashbot-bubble .db-bullet {
-    position: relative;
-    padding: 6px 0 6px 16px;
-    border-bottom: 1px solid #f0f0f3;
-    line-height: 1.5;
-    font-size: 13px;
-    color: #374151;
-}
-
-.dashbot-bubble .db-bullet:last-child {
-    border-bottom: none;
-}
-
-.dashbot-bubble .db-bullet::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 13px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--db-primary);
-}
-
-.dashbot-bubble .db-bullet strong {
-    color: #1a1d27;
-}
-
-.dashbot-bubble .db-alt-label {
-    display: inline-block;
-    font-weight: 700;
-    color: var(--db-accent);
-    font-size: 11.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-right: 2px;
-}
-
-.dashbot-bubble .db-total-label {
-    font-weight: 700;
-    color: var(--db-primary);
-}
-
-.dashbot-bubble .db-air {
-    display: inline-block;
-    background: #d1fae5;
-    color: #065f46;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.dashbot-bubble .db-temp {
-    display: inline-block;
-    background: #fef3c7;
-    color: #92400e;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.dashbot-bubble .db-count {
-    display: inline-block;
-    background: #e0e7ff;
-    color: #3730a3;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
+/* --- Simple text rendering (paragraphs, lists, inline pills) --- */
 .dashbot-bubble .db-para {
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     line-height: 1.55;
-    padding: 4px 0;
-}
-.dashbot-bubble .db-para:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.dashbot-bubble .db-follow-up {
-    margin-top: 10px;
-    font-style: italic;
-    color: #6b7280;
-    border-top: 1px solid #e5e7eb;
-    padding-top: 8px;
     font-size: 13px;
+    color: #374151;
+}
+.dashbot-bubble .db-para:last-child { margin-bottom: 0; }
+
+.dashbot-bubble .db-list {
+    margin: 4px 0 8px;
+    padding-left: 22px;
+    line-height: 1.55;
+    font-size: 13px;
+    color: #374151;
+}
+.dashbot-bubble .db-list:last-child { margin-bottom: 0; }
+.dashbot-bubble .db-list li { padding: 1px 0; }
+.dashbot-bubble .db-list li::marker {
+    color: var(--db-primary);
+    font-weight: 600;
 }
 
-.dashbot-bubble .db-info-card {
-    margin: 6px 0;
-    padding: 8px 10px;
-    background: #f7f8fa;
-    border-radius: 8px;
-    border-left: 3px solid var(--db-primary);
-}
-.dashbot-bubble .parking-spot { font-weight: 600; color: #374151; margin-bottom: 3px; font-size: 13px; }
-.dashbot-bubble .free-spaces  { color: #16a34a; font-weight: 600; font-size: 13px; }
+.dashbot-bubble strong { color: #1a1d27; font-weight: 700; }
+.dashbot-bubble em { color: #6b7280; font-style: italic; }
 
-.dashbot-bubble .map-link {
+/* Inline pills — subtle accents for times / distances / temperatures */
+.dashbot-bubble .db-pill {
     display: inline-block;
-    margin: 3px 0;
-    padding: 4px 10px;
-    background: var(--db-primary);
-    color: #fff !important;
-    border-radius: 14px;
-    text-decoration: none;
-    font-size: 11px;
-    transition: background 0.2s;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
 }
-.dashbot-bubble .map-link:hover { background: var(--db-primary-light); }
+.dashbot-bubble .db-pill-time { background: #ede9fe; color: #5b21b6; }
+.dashbot-bubble .db-pill-dist { background: #dbeafe; color: #1e40af; }
+.dashbot-bubble .db-pill-temp { background: #fef3c7; color: #92400e; }
+
+/* Links in text */
+.dashbot-bubble .map-link,
+.dashbot-bubble a {
+    color: var(--db-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(98,60,234,0.35);
+}
+.dashbot-bubble .map-link:hover,
+.dashbot-bubble a:hover {
+    color: var(--db-primary);
+    border-bottom-color: var(--db-primary);
+}
 
 .dashbot-typing {
     display: none;
@@ -660,12 +553,17 @@
 
 .dashbot-input-area {
     padding: 14px 18px;
-    background: #fff;
-    border-top: 1px solid #e5e7eb;
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border-top: 1px solid rgba(229, 231, 235, 0.7);
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
 }
 
 .dashbot-input-wrap {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -790,19 +688,6 @@
     transform: none;
 }
 
-.dashbot-send-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: dashbot-spin-fast 0.7s linear infinite;
-}
-
-@keyframes dashbot-spin-fast {
-    to { transform: rotate(360deg); }
-}
-
 /* ---- Microphone Button ---- */
 
 .dashbot-mic-btn {
@@ -922,3 +807,458 @@
     }
 }
 
+/* ============================================================================
+   Info Cards — mobility-app style, light & colorful
+   ============================================================================ */
+
+.db-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eef0f4;
+    width: auto;
+}
+.db-cards:empty {
+    display: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.db-card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, #fbfbfd 0%, #f4f4f9 100%);
+    color: #1a1d27;
+    border: 1px solid #eceaf0;
+    border-radius: 12px;
+    padding: 10px 12px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+/* Top ribbon — colored accent bar per card type */
+.db-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--db-primary), var(--db-accent));
+}
+
+.db-card-enter {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+    transition:
+        opacity 0.28s cubic-bezier(0.22, 1.4, 0.36, 1),
+        transform 0.28s cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+.db-card-shown {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* (legacy element, harmless) */
+.db-card-glow { display: none; }
+
+/* ---- Card header ---- */
+.db-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.db-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 12.5px;
+    color: #1a1d27;
+    flex: 1;
+    min-width: 0;
+}
+.db-card-title > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.25;
+}
+.db-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--db-primary), var(--db-accent));
+    color: white;
+    font-size: 12px;
+    flex-shrink: 0;
+    box-shadow: 0 3px 8px -2px rgba(122, 0, 63, 0.3);
+}
+
+/* ---- Metrics strip (inside cards) ---- */
+.db-metrics {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    padding: 6px 9px;
+    background: linear-gradient(135deg, rgba(122,0,63,0.04), rgba(98,60,234,0.05));
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.db-metric {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+}
+.db-metric + .db-metric::before {
+    content: '·';
+    margin: 0 3px 0 1px;
+    color: #d1d5db;
+}
+.db-metric-val { color: #1a1d27; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
+.db-metric-unit { font-size: 10px; color: #6b7280; font-weight: 500; font-variant-numeric: tabular-nums; }
+.db-metric-ok { color: #059669; }
+.db-metric-ok .db-metric-val { color: #059669; }
+.db-metric-warn { color: #c2410c; }
+.db-metric-warn .db-metric-val { color: #c2410c; }
+
+/* ---- Transit timeline ---- */
+.db-timeline {
+    display: flex;
+    flex-direction: column;
+}
+.db-tl-item {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 9px;
+    align-items: stretch;
+}
+.db-tl-marker {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+}
+.db-tl-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid var(--db-primary);
+    margin-top: 3px;
+    z-index: 2;
+    box-shadow: 0 0 0 2px rgba(122,0,63,0.08);
+    flex-shrink: 0;
+    align-self: flex-start;
+}
+.db-tl-dot-end {
+    background: var(--db-accent);
+    border-color: var(--db-accent);
+    box-shadow: 0 0 0 2px rgba(98,60,234,0.15);
+}
+.db-tl-connector {
+    width: 2.5px;
+    flex: 1;
+    align-self: stretch;
+    margin: -1px auto;
+    background: linear-gradient(180deg, var(--db-primary), var(--db-accent));
+    border-radius: 2px;
+    min-height: 22px;
+}
+.db-tl-body {
+    min-width: 0;
+    padding-bottom: 7px;
+}
+.db-tl-item:last-child .db-tl-body { padding-bottom: 0; }
+
+.db-tl-start .db-tl-body,
+.db-tl-end .db-tl-body {
+    padding-top: 0;
+}
+.db-tl-name {
+    font-weight: 700;
+    font-size: 12px;
+    color: #1a1d27;
+    line-height: 1.3;
+}
+.db-tl-sub {
+    font-size: 9px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 1px;
+    font-weight: 600;
+}
+
+.db-tl-segment .db-tl-body {
+    padding: 3px 0 10px;
+}
+.db-tl-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    background: linear-gradient(135deg, var(--db-primary), var(--db-accent));
+    color: white;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px -2px rgba(122,0,63,0.3);
+}
+.db-tl-badge.db-line-bus {
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    box-shadow: 0 2px 8px -2px rgba(14,165,233,0.3);
+}
+.db-tl-dir {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.35;
+}
+.db-tl-dir-arrow {
+    color: var(--db-accent);
+    font-weight: 700;
+    margin-right: 3px;
+}
+
+/* Stops reveal */
+.db-tl-stops {
+    margin-top: 6px;
+    font-size: 11px;
+}
+.db-tl-stops summary {
+    cursor: pointer;
+    color: var(--db-accent);
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+}
+.db-tl-stops summary::-webkit-details-marker { display: none; }
+.db-tl-stops summary::before {
+    content: '▸';
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 9px;
+}
+.db-tl-stops[open] summary::before { transform: rotate(90deg); }
+.db-tl-stops ol {
+    margin: 5px 0 0 0;
+    padding: 6px 8px 6px 22px;
+    background: #f7f8fa;
+    border-radius: 6px;
+    color: #6b7280;
+    font-size: 11px;
+    line-height: 1.5;
+    max-height: 160px;
+    overflow-y: auto;
+    list-style: disc;
+}
+.db-tl-stops ol li { padding: 0.5px 0; }
+.db-tl-stops ol::-webkit-scrollbar { width: 3px; }
+.db-tl-stops ol::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+.db-tl-stops ol::marker { color: #9ca3af; font-size: 10px; }
+
+/* ---- Route card (walking / cycling / driving) ---- */
+.db-card-route.db-route-walking::before {
+    background: linear-gradient(90deg, #22c55e, #10b981);
+}
+.db-card-route.db-route-walking .db-card-icon {
+    background: linear-gradient(135deg, #22c55e, #10b981);
+    box-shadow: 0 4px 10px -2px rgba(34,197,94,0.35);
+}
+.db-card-route.db-route-cycling::before {
+    background: linear-gradient(90deg, #14b8a6, #0ea5e9);
+}
+.db-card-route.db-route-cycling .db-card-icon {
+    background: linear-gradient(135deg, #14b8a6, #0ea5e9);
+    box-shadow: 0 4px 10px -2px rgba(20,184,166,0.35);
+}
+.db-card-route.db-route-driving::before {
+    background: linear-gradient(90deg, #f97316, #ef4444);
+}
+.db-card-route.db-route-driving .db-card-icon {
+    background: linear-gradient(135deg, #f97316, #ef4444);
+    box-shadow: 0 4px 10px -2px rgba(239,68,68,0.35);
+}
+
+.db-route-directions {
+    margin-top: 6px;
+    font-size: 11px;
+}
+.db-route-directions summary {
+    cursor: pointer;
+    color: var(--db-accent);
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+}
+.db-route-directions summary::-webkit-details-marker { display: none; }
+.db-route-directions summary::before {
+    content: '▸';
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 9px;
+}
+.db-route-directions[open] summary::before { transform: rotate(90deg); }
+.db-route-directions ol {
+    margin: 5px 0 0 0;
+    padding: 6px 8px 6px 22px;
+    background: #f7f8fa;
+    border-radius: 6px;
+    color: #6b7280;
+    line-height: 1.5;
+    font-size: 11px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 420px) {
+    .db-card { padding: 12px 12px 10px; font-size: 12px; }
+    .db-card-icon { width: 28px; height: 28px; font-size: 13px; }
+    .db-metrics { padding: 6px 8px; }
+}
+
+/* ============================================================================
+   Futuristic upgrades — typing wave, streaming bubble, bot avatar, source chips
+   ============================================================================ */
+
+/* ---- Waveform typing indicator (replaces dots; dots kept as fallback) ---- */
+.db-typing-wave {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 14px;
+}
+.db-typing-wave span {
+    display: block;
+    width: 3px;
+    height: 30%;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--db-primary), var(--db-accent));
+    transform-origin: bottom center;
+    animation: db-wave-eq 1.1s ease-in-out infinite;
+    opacity: 0.85;
+}
+.db-typing-wave span:nth-child(1) { animation-delay: 0s;    }
+.db-typing-wave span:nth-child(2) { animation-delay: 0.12s; }
+.db-typing-wave span:nth-child(3) { animation-delay: 0.24s; }
+.db-typing-wave span:nth-child(4) { animation-delay: 0.36s; }
+.db-typing-wave span:nth-child(5) { animation-delay: 0.48s; }
+
+@keyframes db-wave-eq {
+    0%, 100% { height: 25%; opacity: 0.55; }
+    50%      { height: 100%; opacity: 1; }
+}
+
+/* Waveform only animates while the typing container is visible */
+.dashbot-typing:not(.show) .db-typing-wave span {
+    animation: none;
+    height: 25%;
+    opacity: 0.5;
+}
+
+/* ---- Streaming bubble: typing caret ---- */
+.dashbot-bubble.is-streaming {
+    position: relative;
+    transition: box-shadow 0.25s ease;
+}
+
+/* Caret / live-typing cursor at end of streaming bubble */
+.dashbot-bubble.is-streaming::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--db-accent);
+    margin-left: 2px;
+    vertical-align: -2px;
+    border-radius: 1px;
+    animation: db-caret-blink 1s step-end infinite;
+}
+
+@keyframes db-caret-blink {
+    0%, 50%   { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
+}
+
+/* When streaming ends, sibling agent removes .is-streaming — the pseudo-
+   elements disappear. No extra fade needed, but keep a soft exit. */
+.dashbot-bubble:not(.is-streaming) {
+    transition: box-shadow 0.25s ease;
+}
+
+/* ---- Bot-side avatar (small pulsing orb next to message) ---- */
+.db-bot-avatar {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    /* mascot head (relative url → works at /static/ and /api/dashbot/static/) */
+    background-image: url('avatar-head.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    will-change: transform, opacity;
+}
+.db-bot-avatar::before {
+    content: none;  /* no glossy highlight over the head */
+}
+
+/* ---- Mobile: shrink orbs ---- */
+@media (max-width: 480px) {
+    .db-bot-avatar { width: 24px; height: 24px; }
+    .dashbot-msg.bot.with-avatar > *:not(.db-bot-avatar) {
+        max-width: calc(100% - 32px);
+    }
+    .dashbot-welcome-icon { width: 80px; height: 92px; }
+    .avatar-inner { width: 64px; height: 64px; }
+}
+
+/* ---- Reduced motion: kill all continuous animations ---- */
+@media (prefers-reduced-motion: reduce) {
+    .avatar-inner,
+    .dashbot-welcome-icon,
+    .db-bot-avatar {
+        animation: none;
+    }
+    .db-typing-wave span {
+        animation: none;
+        height: 45%;
+        opacity: 0.7;
+    }
+    .dashbot-bubble.is-streaming::before {
+        animation: none;
+    }
+    .dashbot-bubble.is-streaming::after {
+        animation: none;
+        opacity: 1;
+    }
+    .dashbot-input-wrap:focus-within::before {
+        animation: none;
+    }
+    .avatar-glow {
+        opacity: 0.7;
+    }
+    /* Preserve legacy dot fallback only at reduced intensity */
+    .dashbot-typing-dots span {
+        animation: none;
+        opacity: 0.6;
+    }
+}
