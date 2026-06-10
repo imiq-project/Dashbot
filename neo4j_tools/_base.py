@@ -44,6 +44,11 @@ class Neo4jBase:
                     connection_acquisition_timeout=5.0,
                     connection_timeout=3.0,
                     max_connection_pool_size=50,
+                    # Guard against cloud LBs dropping idle connections
+                    # (see mcp_servers/neo4j_server.py).
+                    max_connection_lifetime=300,
+                    keep_alive=True,
+                    liveness_check_timeout=60,
                 )
                 self._owns_driver = True
 

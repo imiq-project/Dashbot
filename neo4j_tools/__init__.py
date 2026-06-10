@@ -31,7 +31,17 @@ def get_default_driver():
 
     from neo4j import GraphDatabase
     from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
-    _default_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+    _default_driver = GraphDatabase.driver(
+        NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
+        connection_acquisition_timeout=5.0,
+        connection_timeout=3.0,
+        max_connection_pool_size=50,
+        # Guard against cloud LBs dropping idle connections
+        # (see mcp_servers/neo4j_server.py).
+        max_connection_lifetime=300,
+        keep_alive=True,
+        liveness_check_timeout=60,
+    )
     return _default_driver
 
 

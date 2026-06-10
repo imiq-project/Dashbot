@@ -29,7 +29,10 @@ EXPOSE 5000
 
 USER app
 
-# Production: 4 workers, uvloop + httptools when available. On platforms where
-# uvloop is missing (which should not happen in this Linux image but just in
-# case) fall back to the default asyncio loop so the container still boots.
-CMD ["sh", "-c", "if python -c 'import uvloop' 2>/dev/null; then exec uvicorn api:app --host 0.0.0.0 --port 5000 --workers 4 --loop uvloop --http httptools; else exec uvicorn api:app --host 0.0.0.0 --port 5000 --workers 4; fi"]
+# Production: single worker — session tokens, conversation histories, the rate
+# limiter, and the semantic cache all live in per-process memory (api.py), so
+# multiple workers randomly 404 on /chat ("unknown session_id"). Do not raise
+# --workers without moving that state to a shared store (e.g. Redis).
+# uvloop + httptools when available; fall back to the default asyncio loop
+# so the container still boots either way.
+CMD ["sh", "-c", "if python -c 'import uvloop' 2>/dev/null; then exec uvicorn api:app --host 0.0.0.0 --port 5000 --workers 1 --loop uvloop --http httptools; else exec uvicorn api:app --host 0.0.0.0 --port 5000 --workers 1; fi"]

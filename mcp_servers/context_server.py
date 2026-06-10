@@ -44,6 +44,12 @@ _neo4j_driver = GraphDatabase.driver(
     connection_acquisition_timeout=5.0,
     connection_timeout=3.0,
     max_connection_pool_size=50,
+    # Aura/cloud load balancers silently drop idle TCP connections; without
+    # these, the first query after an idle gap fails with "defunct connection"
+    # and stalls the agent until its 90s timeout.
+    max_connection_lifetime=300,
+    keep_alive=True,
+    liveness_check_timeout=60,
 )
 _fiware = FIWAREClient(FIWARE_BASE_URL, FIWARE_API_KEY)
 _ors = ORSClient(ORS_API_KEY, ORS_BASE_URL, HTTP_TIMEOUT)
