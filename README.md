@@ -17,7 +17,7 @@ Under the hood it is a single LLM agent wired to a knowledge graph and a live Io
 
 ## How it thinks
 
-One ReAct agent (a reasoning LLM, `gpt-5.4-thinking` by default) owns the entire tool surface. No supervisor, no agent hand offs. The model's native tool calling loop does the routing, fans out calls in parallel, and composes the final answer.
+One ReAct agent (a LLM, `gpt-5.4`) owns the entire tool surface. No supervisor, no agent hand offs. The model's native tool calling loop does the routing, fans out calls in parallel, and composes the final answer.
 
 The tools live in four MCP servers, each a separate stdio subprocess with a single responsibility:
 
